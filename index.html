@@ -29,24 +29,55 @@
     padding:18px;margin-top:16px}
   .card h2{margin:0 0 6px;font-size:18px}
   .card p{color:var(--muted);font-size:14px;line-height:1.5;margin:6px 0}
+  .stepnum{display:inline-block;background:linear-gradient(90deg,var(--pink),var(--purple));
+    border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700;margin-right:6px}
   label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
-  input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
-    background:var(--card2);color:var(--text);font-size:15px}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  input[type="url"],input[type="text"],select{width:100%;padding:12px;border-radius:10px;
+    border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:15px}
+  .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media (max-width:560px){.row{grid-template-columns:1fr}}
   button{width:100%;margin-top:16px;padding:13px;border:0;border-radius:12px;cursor:pointer;
     font-size:16px;font-weight:700;color:#fff;
     background:linear-gradient(90deg,var(--pink),var(--purple))}
   button.secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
-  pre{background:#0a0616;border:1px solid var(--border);border-radius:10px;
-    padding:12px;overflow-x:auto;font-size:13px;white-space:pre-wrap;word-break:break-all}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .dropzone{border:2px dashed var(--border);border-radius:14px;padding:26px 16px;
+    text-align:center;color:var(--muted);cursor:pointer;background:var(--card2)}
+  .dropzone.drag{border-color:var(--pink);background:#ff2e8814}
+  .dropzone strong{color:var(--text)}
+  .or{text-align:center;color:var(--muted);margin:16px 0 4px;font-size:13px}
+  .fileinfo{margin-top:10px;font-size:14px;color:var(--green)}
+  .notice{display:none;border-left:3px solid var(--orange);padding:10px 12px;
+    background:#ff8a0012;border-radius:8px;font-size:14px;line-height:1.5;color:var(--muted);margin-top:12px}
+  .notice.show{display:block}
+  .notice strong{color:var(--text)}
+  .explainer{display:none;border:1px solid var(--orange);border-radius:14px;padding:18px;
+    background:#ff8a0012;margin-top:16px}
+  .explainer.show{display:block}
+  .explainer h3{margin:0 0 8px;color:var(--orange)}
+  .explainer p,.explainer li{color:var(--muted);font-size:14px;line-height:1.6}
+  .explainer ol{margin:8px 0;padding-left:20px}
+  .progress{height:10px;border-radius:999px;background:var(--card2);overflow:hidden;margin-top:12px;display:none}
+  .progress.show{display:block}
+  .progress > div{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--purple))}
+  .status{font-size:14px;color:var(--muted);margin-top:10px;line-height:1.5;min-height:20px}
+  .status b{color:var(--text)}
+  .log{font-size:12px;color:var(--muted);white-space:pre-wrap;word-break:break-word;
+    background:#0a0616;border:1px solid var(--border);border-radius:10px;padding:10px;
+    max-height:140px;overflow-y:auto;margin-top:10px;display:none}
+  .log.show{display:block}
+  .results{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:560px){.results{grid-template-columns:1fr}}
+  .clip{background:var(--card2);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .clip video{width:100%;display:block;background:#000;max-height:340px}
+  .clip .meta{padding:12px}
+  .clip .t{font-weight:700;font-size:14px}
+  .clip .s{color:var(--muted);font-size:13px;line-height:1.5;margin-top:4px}
+  .clip a.dl{display:block;text-align:center;margin:10px 12px 12px;padding:10px;border-radius:10px;
+    background:linear-gradient(90deg,var(--pink),var(--purple));color:#fff;text-decoration:none;
+    font-weight:700;font-size:14px}
   .note{border-left:3px solid var(--orange);padding:10px 12px;background:#ff8a0012;
     border-radius:8px;font-size:14px;line-height:1.5;color:var(--muted)}
-  .moment{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);
-    border-radius:12px;padding:12px;margin-top:10px;background:var(--card2)}
-  .moment input{width:auto;margin-top:4px;accent-color:var(--pink)}
-  .moment .t{font-weight:700}
-  .moment .s{color:var(--muted);font-size:13px;line-height:1.5}
-  .score{margin-left:auto;white-space:nowrap;font-weight:700;color:var(--orange)}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 32px}
   a{color:var(--pink)}
 </style>
@@ -56,81 +87,142 @@
   <h1>LEONIDA CLIPPER</h1>
   <p class="sub">Free · Unlimited · No watermark · No monthly cap · No paid API</p>
   <div class="badges">
-    <span class="badge"><b>✓</b> 60s vertical 1080×1920</span>
-    <span class="badge"><b>✓</b> Audio-peak moments</span>
-    <span class="badge"><b>✓</b> Works offline after download</span>
+    <span class="badge"><b>✓</b> Best moments, picked automatically</span>
+    <span class="badge"><b>✓</b> Preview every clip</span>
+    <span class="badge"><b>✓</b> Download to your device</span>
+    <span class="badge"><b>✓</b> Your video never leaves your device</span>
   </div>
 </header>
-
 <main>
-  <div class="card">
-    <h2>1. Pick your source</h2>
-    <p>Paste a YouTube URL <b>or</b> a local video file path. The cutting itself
-       runs locally with <code>clipper.py</code> — this page does <b>not</b> cut
-       video in your browser, and it does not pretend to.</p>
-    <label for="src">YouTube URL or local file path</label>
-    <input id="src" type="text" placeholder="https://www.youtube.com/watch?v=…  or  ~/videos/carry-stream.mp4">
+
+  <!-- Step 1: source -->
+  <section class="card" id="step1">
+    <h2><span class="stepnum">1</span> Add your video</h2>
+    <p>Upload the full video file. The cutting happens right here in your browser — nothing is uploaded to any server.</p>
+
+    <div class="dropzone" id="dropZone" tabindex="0" role="button" aria-label="Upload a video file">
+      <strong>Drop your video here</strong><br>
+      or tap to choose a file from your device<br>
+      <span style="font-size:13px">MP4, WebM, MOV and most other video files work</span>
+    </div>
+    <input type="file" id="fileInput" accept="video/*,.mp4,.webm,.mov,.mkv,.avi" hidden>
+    <div class="fileinfo" id="fileInfo"></div>
+
+    <div class="or">— or paste a YouTube link —</div>
+    <label for="ytUrl">YouTube link</label>
+    <input type="url" id="ytUrl" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+    <label for="pipedInstance">Fetch the link with (Piped — free, no account needed)</label>
+    <select id="pipedInstance">
+      <option value="auto" selected>Auto — try each one in turn</option>
+      <option value="https://api.piped.private.coffee">api.piped.private.coffee</option>
+      <option value="https://pipedapi.wireway.ch">pipedapi.wireway.ch</option>
+      <option value="https://pipedapi.kavin.rocks">pipedapi.kavin.rocks</option>
+    </select>
+    <div class="notice" id="ytNotice">
+      <strong>Heads up:</strong> this page will try to fetch the video through Piped, a free public
+      service — no account, no key. Piped is free but its servers can be down, slow, or blocked
+      by YouTube for some videos. If the fetch fails, download the video to your device first,
+      then upload that file above. See the full steps below when you press Generate Clips.
+    </div>
+  </section>
+
+  <!-- Step 2: options -->
+  <section class="card" id="step2">
+    <h2><span class="stepnum">2</span> Choose your clips</h2>
     <div class="row">
       <div>
-        <label for="count">Number of clips</label>
-        <select id="count">
-          <option>3</option><option>5</option><option selected>7</option><option>10</option>
+        <label for="clipCount">How many clips?</label>
+        <select id="clipCount">
+          <option value="1">1 clip</option>
+          <option value="2">2 clips</option>
+          <option value="3" selected>3 clips</option>
+          <option value="4">4 clips</option>
+          <option value="5">5 clips</option>
+          <option value="6">6 clips</option>
+          <option value="7">7 clips</option>
+          <option value="8">8 clips</option>
+          <option value="9">9 clips</option>
+          <option value="10">10 clips</option>
         </select>
       </div>
       <div>
-        <label for="length">Clip length (seconds)</label>
-        <select id="length">
-          <option>30</option><option selected>60</option><option>90</option>
+        <label for="clipLength">Clip length</label>
+        <select id="clipLength">
+          <option value="15">15 seconds</option>
+          <option value="30">30 seconds</option>
+          <option value="45">45 seconds</option>
+          <option value="60" selected>60 seconds</option>
+          <option value="90">90 seconds</option>
+        </select>
+      </div>
+      <div>
+        <label for="dimension">Clip size</label>
+        <select id="dimension">
+          <option value="1080x1920" selected>Vertical · 1080 × 1920</option>
+          <option value="1080x1080">Square · 1080 × 1080</option>
+          <option value="1920x1080">Landscape · 1920 × 1080</option>
         </select>
       </div>
     </div>
-    <label for="out">Output folder</label>
-    <input id="out" type="text" value="./output">
-    <button id="gen">Generate command</button>
-    <label>Run this in a terminal, in the <code>leonida-clipper</code> folder:</label>
-    <pre id="cmd">python3 clipper.py "PASTE_URL_OR_FILE_HERE" --count 7 --length 60 --output ./output</pre>
-    <button class="secondary" id="copy">Copy command</button>
-    <p class="note">⚠️ <b>Permission still matters.</b> This tool cuts faster — it does not
-    grant permission. Only use it on creators who have given permission to clip
-    their videos (e.g. CarryMinati, per Uzair's check) or on campaigns that
-    grant permission on joining.</p>
-  </div>
+    <p style="font-size:13px">Vertical 1080 × 1920 is the size for YouTube Shorts. The tool listens for the
+    loudest moments — shouting, laughter, hype reactions, chases — and cuts those.</p>
+  </section>
 
-  <div class="card">
-    <h2>2. Review the moments it found</h2>
-    <p>After the CLI finishes, it writes <code>clips.json</code> in the output
-       folder. Load that file here to preview the moments, tick the ones you
-       want to keep, and copy their titles.</p>
-    <label for="jsonfile">Load clips.json</label>
-    <input id="jsonfile" type="file" accept=".json,application/json">
-    <div id="moments"></div>
-    <button class="secondary" id="export" style="display:none">Copy selected titles</button>
-    <pre id="exportOut" style="display:none"></pre>
-  </div>
+  <!-- Generate -->
+  <button id="generateBtn" type="button">Generate Clips</button>
+  <div class="progress" id="progressWrap"><div id="progressBar"></div></div>
+  <div class="status" id="status">Upload a video, pick how many clips you want, then press Generate Clips.</div>
+  <div class="log" id="log"></div>
 
-  <div class="card">
-    <h2>How it works (honest version)</h2>
-    <p><b>In the browser (this page):</b> builds the command, and previews
-       <code>clips.json</code> results. Nothing is uploaded, nothing is cut here.</p>
-    <p><b>On your computer (<code>clipper.py</code>):</b> downloads the source with
-       yt-dlp (YouTube URLs only), analyses the audio with ffmpeg — loudness
-       peaks, silence breaks, and an optional local faster-whisper transcript —
-       scores every 60-second window, picks the top N with no overlap, and cuts
-       them to vertical 1080×1920 with a blurred background, H.264 + AAC, no watermark.</p>
-    <p><b>What it does well:</b> loud reactions, laughter, shouting, hype moments,
-       shootouts and chases.</p>
-    <p><b>What it misses:</b> silent visual moments, visual gags, and jokes that
-       only work from the transcript. Always preview before uploading.</p>
-    <p><b>Requirements:</b> ffmpeg, ffprobe, yt-dlp on PATH. Python 3.10+, stdlib only.
-       faster-whisper is optional.</p>
-  </div>
+  <!-- YouTube explainer (only shown when a link is pasted and Generate is pressed) -->
+  <section class="explainer" id="ytExplainer">
+    <h3>That YouTube link couldn't be fetched right now</h3>
+    <div id="pipedError" style="color:var(--muted);font-size:14px;line-height:1.6"></div>
+    <p>This page runs entirely in your browser — there is no server behind it — so it fetches
+    YouTube links through Piped, a free public service. Piped's servers are free but they can
+    be down, slow, or blocked by YouTube for some videos (YouTube sometimes asks Piped to sign
+    in to prove it isn't a bot, and Piped can't do that). That is why the link failed — it is
+    not a problem with your video.</p>
+    <p><strong>What to do instead — it takes about a minute:</strong></p>
+    <ol>
+      <li>Download the video to your device first — for example with yt-dlp, or a video downloader of your choice.</li>
+      <li>Come back here and upload that video file in Step 1 above (drop it on the box).</li>
+      <li>Pick how many clips and what size, press <strong>Generate Clips</strong>, and download the clips.</li>
+    </ol>
+    <p>Your video file never leaves your device — the cutting happens in your browser.</p>
+    <button id="pipedRetryBtn" type="button" class="secondary">Try fetching the link again</button>
+  </section>
+
+  <!-- Results -->
+  <section class="card" id="resultsCard" style="display:none">
+    <h2>Your clips</h2>
+    <p id="resultsSummary"></p>
+    <button id="downloadAllBtn" type="button" class="secondary">Download All Clips</button>
+    <div class="results" id="results"></div>
+  </section>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <p>1. Upload your video file — or paste a YouTube link, which the page tries to fetch
+    through Piped (free, no account). If Piped can't fetch it, upload the file instead.<br>
+    2. Pick how many clips, how long, and what size.<br>
+    3. Press <strong>Generate Clips</strong>. The tool listens to the audio, finds the loudest,
+    most energetic moments, and cuts each clip in your browser.<br>
+    4. Watch every clip in the preview, then download the ones you like.</p>
+    <div class="note">Honest limits: it is best at loud reactions, laughter and chases, and can miss
+    silent visual jokes. It ranks moments by energy, not by how funny they are — so always watch a
+    clip before you upload it. It also does not grant permission to clip anyone's video: only use
+    it on creators who have given permission to clip their videos.</div>
+    <p style="font-size:13px">First run loads the video cutter (about 30&nbsp;MB) from the internet, so it can
+    take a minute on a slow connection. After that, cutting happens on your device. Very long or
+    very large videos (over about 1&nbsp;GB) can be slow or run out of browser memory — shorter
+    videos work best.</p>
+  </section>
+
 </main>
-
 <footer>
-  Leonida Nights · Leonida Clipper v1.0 · Free forever, no watermark, no cap.
-  Built for Uzair — only clip creators who have given permission.
+  Leonida Clipper · Free · Unlimited · No watermark · Made for Leonida Nights
 </footer>
-
-<script src="app.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
