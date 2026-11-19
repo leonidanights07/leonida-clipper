@@ -6,13 +6,13 @@ Turn a long streamer video / live-stream VOD into 60-second vertical
 (1080×1920) clips for YouTube Shorts. No monthly cap, no watermark,
 no paid API, no API key, no account.
 
-**Repo:** `https://github.com/uzairhasan035/leonida-clipper` (new repo —
+**Repo:** `https://github.com/leonidanights07/leonida-clipper` (new repo —
 clone it and run it manually; nothing here pushes or uploads by itself)
 
 ## Install
 
 ```bash
-git clone https://github.com/uzairhasan035/leonida-clipper.git
+git clone https://github.com/leonidanights07/leonida-clipper.git
 cd leonida-clipper
 ```
 
@@ -137,7 +137,7 @@ there is no fake in-browser ffmpeg. Cutting happens locally with
 ## Push to GitHub (for Uzair — manual, from his account)
 
 The folder is ready to push as a new repo `leonida-clipper` under
-`uzairhasan035`. This tool does not push anything itself.
+`leonidanights07`. This tool does not push anything itself.
 
 ```bash
 cd leonida-clipper
@@ -145,7 +145,7 @@ git init
 git add clipper.py index.html app.js README.md requirements.txt LICENSE .gitignore
 git commit -m "Leonida Clipper v1.0 — free, unlimited, no-watermark clipping tool"
 git branch -M main
-git remote add origin https://github.com/uzairhasan035/leonida-clipper.git
+git remote add origin https://github.com/leonidanights07/leonida-clipper.git
 git push -u origin main
 ```
 
