@@ -1,0 +1,10 @@
+# Leonida Clipper — requirements
+# The tool itself needs ONLY the Python standard library.
+# ffmpeg / ffprobe / yt-dlp must be installed on the system (already are on this machine).
+
+# Optional — only if you want transcript-based scoring.
+# Without it the tool still works, using audio peaks only.
+# faster-whisper==1.2.1
+
+# Optional — yt-dlp as a Python package (the CLI calls the yt-dlp binary instead).
+# yt-dlp>=2024.1.1

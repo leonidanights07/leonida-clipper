@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leonida Clipper — Free, Unlimited, No Watermark</title>
+<style>
+  :root{
+    --bg:#0b0714; --card:#17102a; --card2:#1f1538;
+    --pink:#ff2e88; --purple:#a855f7; --orange:#ff8a00;
+    --text:#f5f0ff; --muted:#b8a8d9; --border:#3a2a63; --green:#34d399;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(900px 500px at 20% -10%,#3b1150 0%,transparent 60%),
+               radial-gradient(800px 500px at 90% 0%,#4a1a05 0%,transparent 55%),
+               var(--bg);color:var(--text);min-height:100vh}
+  header{padding:28px 18px 8px;text-align:center}
+  h1{margin:0;font-size:clamp(28px,6vw,44px);letter-spacing:1px;
+    background:linear-gradient(90deg,var(--orange),var(--pink),var(--purple));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin:8px 0 0}
+  .badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+  .badge{border:1px solid var(--border);border-radius:999px;padding:6px 12px;
+    font-size:13px;color:var(--muted);background:#ffffff08}
+  .badge b{color:var(--green)}
+  main{max-width:760px;margin:0 auto;padding:18px 16px 48px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:18px;margin-top:16px}
+  .card h2{margin:0 0 6px;font-size:18px}
+  .card p{color:var(--muted);font-size:14px;line-height:1.5;margin:6px 0}
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+  input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+    background:var(--card2);color:var(--text);font-size:15px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  button{width:100%;margin-top:16px;padding:13px;border:0;border-radius:12px;cursor:pointer;
+    font-size:16px;font-weight:700;color:#fff;
+    background:linear-gradient(90deg,var(--pink),var(--purple))}
+  button.secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
+  pre{background:#0a0616;border:1px solid var(--border);border-radius:10px;
+    padding:12px;overflow-x:auto;font-size:13px;white-space:pre-wrap;word-break:break-all}
+  .note{border-left:3px solid var(--orange);padding:10px 12px;background:#ff8a0012;
+    border-radius:8px;font-size:14px;line-height:1.5;color:var(--muted)}
+  .moment{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);
+    border-radius:12px;padding:12px;margin-top:10px;background:var(--card2)}
+  .moment input{width:auto;margin-top:4px;accent-color:var(--pink)}
+  .moment .t{font-weight:700}
+  .moment .s{color:var(--muted);font-size:13px;line-height:1.5}
+  .score{margin-left:auto;white-space:nowrap;font-weight:700;color:var(--orange)}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 32px}
+  a{color:var(--pink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>LEONIDA CLIPPER</h1>
+  <p class="sub">Free · Unlimited · No watermark · No monthly cap · No paid API</p>
+  <div class="badges">
+    <span class="badge"><b>✓</b> 60s vertical 1080×1920</span>
+    <span class="badge"><b>✓</b> Audio-peak moments</span>
+    <span class="badge"><b>✓</b> Works offline after download</span>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>1. Pick your source</h2>
+    <p>Paste a YouTube URL <b>or</b> a local video file path. The cutting itself
+       runs locally with <code>clipper.py</code> — this page does <b>not</b> cut
+       video in your browser, and it does not pretend to.</p>
+    <label for="src">YouTube URL or local file path</label>
+    <input id="src" type="text" placeholder="https://www.youtube.com/watch?v=…  or  ~/videos/carry-stream.mp4">
+    <div class="row">
+      <div>
+        <label for="count">Number of clips</label>
+        <select id="count">
+          <option>3</option><option>5</option><option selected>7</option><option>10</option>
+        </select>
+      </div>
+      <div>
+        <label for="length">Clip length (seconds)</label>
+        <select id="length">
+          <option>30</option><option selected>60</option><option>90</option>
+        </select>
+      </div>
+    </div>
+    <label for="out">Output folder</label>
+    <input id="out" type="text" value="./output">
+    <button id="gen">Generate command</button>
+    <label>Run this in a terminal, in the <code>leonida-clipper</code> folder:</label>
+    <pre id="cmd">python3 clipper.py "PASTE_URL_OR_FILE_HERE" --count 7 --length 60 --output ./output</pre>
+    <button class="secondary" id="copy">Copy command</button>
+    <p class="note">⚠️ <b>Permission still matters.</b> This tool cuts faster — it does not
+    grant permission. Only use it on creators who have given permission to clip
+    their videos (e.g. CarryMinati, per Uzair's check) or on campaigns that
+    grant permission on joining.</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Review the moments it found</h2>
+    <p>After the CLI finishes, it writes <code>clips.json</code> in the output
+       folder. Load that file here to preview the moments, tick the ones you
+       want to keep, and copy their titles.</p>
+    <label for="jsonfile">Load clips.json</label>
+    <input id="jsonfile" type="file" accept=".json,application/json">
+    <div id="moments"></div>
+    <button class="secondary" id="export" style="display:none">Copy selected titles</button>
+    <pre id="exportOut" style="display:none"></pre>
+  </div>
+
+  <div class="card">
+    <h2>How it works (honest version)</h2>
+    <p><b>In the browser (this page):</b> builds the command, and previews
+       <code>clips.json</code> results. Nothing is uploaded, nothing is cut here.</p>
+    <p><b>On your computer (<code>clipper.py</code>):</b> downloads the source with
+       yt-dlp (YouTube URLs only), analyses the audio with ffmpeg — loudness
+       peaks, silence breaks, and an optional local faster-whisper transcript —
+       scores every 60-second window, picks the top N with no overlap, and cuts
+       them to vertical 1080×1920 with a blurred background, H.264 + AAC, no watermark.</p>
+    <p><b>What it does well:</b> loud reactions, laughter, shouting, hype moments,
+       shootouts and chases.</p>
+    <p><b>What it misses:</b> silent visual moments, visual gags, and jokes that
+       only work from the transcript. Always preview before uploading.</p>
+    <p><b>Requirements:</b> ffmpeg, ffprobe, yt-dlp on PATH. Python 3.10+, stdlib only.
+       faster-whisper is optional.</p>
+  </div>
+</main>
+
+<footer>
+  Leonida Nights · Leonida Clipper v1.0 · Free forever, no watermark, no cap.
+  Built for Uzair — only clip creators who have given permission.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
