@@ -180,7 +180,7 @@ export const FFMPEG_WORKER_URL = new URL("vendor/ffmpeg/worker.js", import.meta.
 // is different (e.g. the service was renamed), paste it there and it is
 // saved in the browser. Never put an API key here — the page is public,
 // so anything in it is visible to everyone.
-export const COBALT_BACKEND_URL = "https://leonida-clipper-yt.onrender.com";
+export const COBALT_BACKEND_URL = "https://leonida-clipper-yt-production.up.railway.app/";
 
 /** Pick the Cobalt backend URL: the "Your server address" box wins, then a
  * URL saved in the browser, then the default above. Pure — unit-testable.
@@ -310,6 +310,7 @@ if (typeof document !== "undefined") {
   let selectedAudioFile = null; // separate audio track, when the server gives video-only video
   let selectedDuration = 0;
   let fetchedTitle = "";
+  let fetchedVideoId = null; // YouTube ID of the video loaded via link fetch (null for an uploaded file)
   let clips = []; // {start, end, score, filename, url, size}
   let ffmpeg = null;
   let ffmpegUtil = null;
@@ -351,6 +352,7 @@ if (typeof document !== "undefined") {
     selectedFile = file;
     selectedAudioFile = null;
     fetchedTitle = "";
+    fetchedVideoId = null;
     selectedDuration = 0;
     ytExplainer.classList.remove("show");
     clearClips();
@@ -614,6 +616,27 @@ if (typeof document !== "undefined") {
       generateBtn.textContent = "Generate Clips";
     };
 
+    // A NEW link pasted while a fetched video is already loaded: the old
+    // video must NOT be re-cut if the new fetch fails (bug found
+    // 2026-11-20: the tool silently re-analysed and re-cut the previous
+    // video — same clip, same size — with no sign the new link was
+    // ignored, so a user could download the wrong video's clip). Clear
+    // the stale video and its results FIRST, then fetch the new link;
+    // on failure the catch below returns with nothing loaded, so
+    // nothing gets cut. (A manually uploaded file is untouched: pasting
+    // a link alongside an upload still uses the uploaded file, as before.)
+    const pastedVideoId = isYouTubeUrl(link) ? extractVideoId(link) : null;
+    const isNewLink = !!(pastedVideoId && fetchedVideoId && pastedVideoId !== fetchedVideoId);
+    if (isNewLink) {
+      selectedFile = null;
+      selectedAudioFile = null;
+      fetchedVideoId = null;
+      fetchedTitle = "";
+      selectedDuration = 0;
+      clearClips();
+      fileInfo.textContent = "";
+    }
+
     // No file uploaded — try to fetch the pasted YouTube link, first
     // through our own Cobalt backend only. If it cannot get it, say
     // none of them can get it, say so plainly and point at uploading
@@ -632,6 +655,7 @@ if (typeof document !== "undefined") {
           selectedFile = fetched.file;
           selectedAudioFile = fetched.audioFile;
           fetchedTitle = fetched.title;
+          fetchedVideoId = videoId;
           selectedDuration = 0;
           clearClips();
           fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · fetched via ${fetched.source} (${fetched.instance}, ${fetched.quality})`;
@@ -671,7 +695,7 @@ if (typeof document !== "undefined") {
         return;
       }
     }
-    if (link && isYouTubeUrl(link)) {
+    if (link && isYouTubeUrl(link) && pastedVideoId !== fetchedVideoId) {
       log("A YouTube link was pasted too — using the uploaded file, which is already here.");
     }
 
