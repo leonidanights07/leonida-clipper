@@ -1,0 +1,51 @@
+# Leonida Clipper — yt-dlp YouTube backend (Fly.io config)
+#
+# Deploy from inside backend-yt/ with the Fly CLI:
+#   cd backend-yt
+#   fly launch --no-deploy   # accept app name leonida-clipper-yt, region sin
+#   fly deploy
+#
+# ---------------------------------------------------------------------------
+# WARNING — READ FIRST: Fly.io has NO free tier for new accounts
+# (checked 2026-11-20, docs.fly.io + fly.io pricing).
+# New accounts get a $1 trial credit for 7 days only, machines auto-stop
+# after 5 minutes of running, and when the trial ends the app STOPS until
+# a credit card is added. After that it is pay-as-you-go from the first
+# second: shared-cpu-1x with 512 MB RAM = $3.69/month in the cheapest
+# regions (256 MB = $2.19/month, but 256 MB is too tight for ffmpeg +
+# yt-dlp remuxing a 720p video — use 512 MB). There is no monthly free
+# allowance and no spending cap by default.
+# So Fly.io is a 7-DAY TEST ONLY unless Uzair is willing to pay ~$3.69/mo.
+# Railway (free, no card) and Oracle (free forever, card for ID check)
+# are the genuinely-free options; Fly.io is here only so the IP question
+# can be answered cheaply for one week.
+# ---------------------------------------------------------------------------
+#
+# Env: API_URL must be this app's public URL. Fly assigns
+# https://<app-name>.fly.dev — with app = "leonida-clipper-yt" that is
+# https://leonida-clipper-yt.fly.dev. If the app is renamed, change it.
+# PORT: Fly sets PORT=8080 for the machine; server.py reads it, and
+# internal_port below must match it.
+
+app = "leonida-clipper-yt"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  API_URL = "https://leonida-clipper-yt.fly.dev"
+  CORS_URL = "https://leonidanights07.github.io"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

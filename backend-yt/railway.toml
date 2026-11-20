@@ -1,0 +1,46 @@
+# Leonida Clipper — yt-dlp YouTube backend (Railway config)
+#
+# Put this file in the Railway service's ROOT DIRECTORY.
+# In the Railway dashboard: New Project -> Deploy from GitHub repo
+# leonidanights07/leonida-clipper -> service Settings -> Root Directory
+# = "backend-yt". Railway then reads THIS file (backend-yt/railway.toml)
+# and builds backend-yt/Dockerfile.
+#
+# Do NOT put this at the repo root: Railway only reads the config file
+# from the service root directory, and the repo root has no Dockerfile.
+#
+# Env vars to set in the dashboard (Variables tab) after the first deploy:
+#   API_URL  = https://<your-service>.up.railway.app   (no trailing slash)
+#              Railway assigns the public domain on first deploy; copy it
+#              from the service Settings -> Domains, set API_URL to it,
+#              then redeploy. Until API_URL matches the real public URL,
+#              tunnel links the page gets will point at the wrong place.
+#   CORS_URL = https://leonidanights07.github.io
+# PORT is injected by Railway automatically; server.py reads it.
+#
+# Free-plan notes (checked 2026-11-20, docs.railway.com):
+# - $0, no card. New accounts: one-time $5 trial credit for 30 days,
+#   then $1 of usage credit every month (no rollover). When the credit
+#   runs out, services stop until the next cycle — no surprise bill.
+# - Rates: $20/vCPU/month, $10/GB RAM/month, $0.05/GB egress.
+#   Our service is capped at 1 vCPU / 0.5 GB RAM on the Free plan and
+#   sleeps when idle, so light use fits the $1 easily:
+#   ~20 fetches a month, ~5 min awake each, ~1 GB egress ≈ $0.11.
+#   Heavy use burns the $1 and the service stops until next month.
+# - Trial needs GitHub verification for the FULL trial; an unverified
+#   account gets a "Limited Trial" that RESTRICTS NETWORK ACCESS —
+#   that would break yt-dlp fetching YouTube. Verify with the
+#   leonidanights07 GitHub account before testing.
+# - Free plan: 1 replica, 0.5 GB RAM, 1 vCPU, 1 GB ephemeral storage.
+#   That is enough for one 720p download at a time (server.py enforces
+#   one download at a time with a lock anyway).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
