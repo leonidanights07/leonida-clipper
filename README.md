@@ -14,8 +14,8 @@ upload your video, and press Generate Clips.
 
 1. Open https://leonidanights07.github.io/leonida-clipper/
 2. Upload the full video file — drop it on the box, or tap the box to choose it —
-   or paste a YouTube link and let the page fetch it (Piped first, then
-   Invidious — see "YouTube links" below).
+   or paste a YouTube link and let our own free server fetch it (see
+   "YouTube links" below).
 3. Choose how many clips you want (1–10), how long each clip is (15 / 30 / 45 / 60 / 90 seconds),
    and the size: Vertical 1080×1920 (for Shorts), Square 1080×1080, or Landscape 1920×1080.
 4. Press **Generate Clips**. The tool listens to the audio, finds the loudest, most energetic
@@ -45,57 +45,32 @@ Per run, in your downloads:
 
 ## YouTube links — how they work, and their limits
 
-Paste a YouTube link and the page tries to fetch the video through **Piped**
-first, then **Invidious** — both free public services (no account, no key,
-no server of ours). You can also pick one server directly under the link box,
-or add your own Invidious instance in the optional field.
+Paste a YouTube link and the page sends it to **our own Cobalt backend**
+— a free Cobalt instance on Render (see `render.yaml` and
+`backend/DEPLOY.md`). The server fetches the video and tunnels the file
+back to your browser, because a browser page on its own cannot download
+the actual video file from YouTube. Then the clips are cut in your
+browser exactly like an uploaded file.
 
-**Piped** (tried first, in this order):
+The backend is free, so it **sleeps after 15 minutes** with no use.
+The first try of the day can take about a minute to wake up — the page
+says so on screen and waits up to 2 minutes. Later tries are fast.
+It has 5 GB of bandwidth a month on the free plan, and YouTube can
+still block a datacenter server with a bot check sometimes.
 
-- `api.piped.private.coffee`
-- `pipedapi.wireway.ch`
-- `pipedapi.kavin.rocks`
+**What used to be here, and why it is gone (2026-11-20):** the page
+used to try Piped first, then Invidious — both free public services.
+They do not work for the videos this tool clips. Piped answers
+HTTP 500 for GTA 6 streamer videos (YouTube's bot check) and its other
+servers are down; Invidious finds the video's data but the browser
+cannot download the actual media file from it (proxied and direct
+both fail — CORS / proxy block). Both were removed from the tool
+entirely. There is no Piped or Invidious code left in `index.html`
+or `app.js`, and no option for them in the page.
 
-It takes the best MP4 stream (720p/1080p if there is one, with audio; if the
-video is video-only, it downloads the audio track too and mixes it in while
-cutting). Then the clips are cut in your browser exactly like an uploaded file.
-
-**Invidious** (tried only after every Piped server has failed):
-
-- `yt.chocolatemoo53.com` — live-tested 2026-11-20: the only public instance
-  that answered `/api/v1/videos` with real video data that day, and it did so
-  even for GTA 6 streamer videos (Clix, CarryMinati) that Piped answers with
-  HTTP 500. It is also the only instance in the official list
-  (api.invidious.io/instances.json) with both `api=true` and `cors=true`,
-  which a browser page needs. The others failed that day: nadeko 403,
-  nerdvpn 403 access_denied, tiekoetter 403, yewtu 403, pixora returns an
-  HTML picker page (no API), privacyredirect / datura / projectsegfau /
-  flokinet unreachable — so they are not in the list. If
-  yt.chocolatemoo53.com ever goes down, add a replacement that has
-  `api=true` and `cors=true` in the official list, and only after
-  live-testing that it returns video data.
-
-Invidious returns adaptive-only streams (no muxed file): the page picks the
-best H.264 MP4 video (720p first, then 1080p / 480p / 360p — AV1 is skipped,
-the in-browser cutter handles H.264 far better) plus the best AAC audio
-track, downloads both (trying the instance's proxied `latest_version` URL
-first, then the direct link), and ffmpeg mixes them while cutting.
-
-**Honest warning:** both services are run by volunteers and YouTube
-sometimes blocks them — for some videos they answer "sign in to confirm
-you're not a bot", and some of their servers are down at any given moment.
-Live-tested 2026-11-20: Piped returned HTTP 500 for the GTA 6 streamer
-videos and its other two servers were down; Invidious via
-yt.chocolatemoo53.com returned the same videos' data and a 200 KB range
-download of the 720p stream verified as valid MP4. Note the direct
-googlevideo links carry no `Access-Control-Allow-Origin` header, so a
-browser fetch of them may still be refused — that is why the page tries
-the instance's proxied URL first. The full in-browser fetch could not be
-verified in this VM (its headless browser cannot reach the internet), so
-treat the link path as "works in tests, may still fail in a real browser".
-When a fetch fails the page says so plainly, tells you which service said
-what, and offers a retry or a different server. If no server can fetch the
-link, do this instead:
+When a fetch fails the page says so plainly, tells you what the
+server said, and offers a retry. If our server cannot fetch the link,
+do this instead:
 
 1. Download the video to your device first — for example with yt-dlp, or a video
    downloader of your choice.
@@ -103,6 +78,34 @@ link, do this instead:
 3. Pick your clips and press Generate Clips.
 
 Uploading the file always works — it is the reliable path.
+
+## Our own Cobalt backend on Render (free)
+
+The backend is one free Render web service running the official Cobalt
+API image (`ghcr.io/imputnet/cobalt:latest`). Everything needed to
+deploy it is in this repo:
+
+- `render.yaml` — Render Blueprint: one free web service, Docker
+  runtime, health check on `/`, all environment variables.
+- `backend/Dockerfile` — the Cobalt image, with Render's `$PORT`
+  mapped to Cobalt's `API_PORT` at start time.
+- `backend/DEPLOY.md` — step-by-step deploy instructions (about
+  10 minutes, free Render account, no credit card).
+- `backend/docker-compose.yml` — run the same backend locally
+  with Docker, for testing.
+
+The deployed URL is `https://leonida-clipper-cobalt.onrender.com`
+(service name `leonida-clipper-cobalt`). The page points at it by
+default (`COBALT_BACKEND_URL` in `app.js`). If the service is ever
+renamed, paste the new URL into the "Your server address" box on the
+page — it is saved in the browser — and update `API_URL` in Render.
+
+No API key is set on purpose: the Clipper page is public, so any key
+in it would be visible to everyone anyway. The rate limits in
+`render.yaml` (20 API requests per 60 seconds) are the only guard.
+If strangers abuse the URL and burn the 5 GB monthly bandwidth, the
+fix is to add an API key on the server and stop calling it from the
+public page.
 
 ## Honest limits
 
@@ -127,6 +130,16 @@ their videos (e.g. CarryMinati, per Uzair's check) or on campaigns
 that grant permission on joining. Never use it on a creator whose
 permission you have not verified.
 
+## Look and feel
+
+The page is a Leonida Nights sunset: dark background, a glowing
+orange–pink–purple sunset with a skyline and palms at the top, big
+neon title, rounded glowing cards for each step, and a large
+gradient Generate Clips button. Same simple flow, no extra steps —
+upload or paste a link, pick clips, press Generate, preview,
+download. No build step, no external images: the sunset is pure
+CSS + inline SVG, so it stays fast on GitHub Pages.
+
 ## For developers
 
 The website is a single static site — `index.html` + `app.js`, no build step,
@@ -140,8 +153,8 @@ no server — so it works on GitHub Pages as-is. It uses:
 
 The loudness scoring is in `app.js` as pure functions (`computeBestWindows`,
 `evenWindows`, `buildVideoFilter`) — they can be imported and unit-tested in
-Node without a browser. So can the stream pickers (`choosePipedStreams`,
-`chooseInvidiousStreams`, `invidiousProxyUrl`).
+Node without a browser. So can the Cobalt helpers (`cobaltRequestBody`,
+`parseCobaltResponse`).
 
 ## Advanced: the old command-line tool (optional, not needed for the website)
 

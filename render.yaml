@@ -1,0 +1,89 @@
+# Leonida Clipper — own Cobalt backend on Render (free tier)
+#
+# This file is a Render Blueprint. Point Render at this repo and it creates
+# ONE free web service running the official Cobalt API image — no build step,
+# no database, no credit card.
+#
+# What it is for: the Leonida Clipper page on GitHub Pages is a static site
+# with no server of its own. Piped and Invidious (free public services) can
+# FIND a YouTube video, but the browser usually cannot DOWNLOAD the actual
+# video file from them (CORS / proxy blocks — "Failed to fetch"). This backend
+# fixes that: it runs on Render, fetches the video server-side, and tunnels
+# the file back to the browser through our own URL.
+#
+# Deploy steps (do these in the Render dashboard, ~10 minutes):
+#   1. Sign up / sign in at https://render.com (free account, no card).
+#   2. Dashboard → New + → Web Service → connect the GitHub repo
+#      leonidanights07/leonida-clipper (or use "New Blueprint Instance" and
+#      pick this repo — Render reads this render.yaml).
+#   3. Render fills in the settings from this file. Check the service name
+#      is `leonida-clipper-cobalt` — its public URL will be
+#      https://leonida-clipper-cobalt.onrender.com
+#      If you rename the service, you MUST also change the API_URL value
+#      below to the new URL (with a trailing slash), or tunnels break.
+#   4. Deploy. First deploy takes a few minutes (it pulls the Cobalt image).
+#   5. Open https://leonida-clipper-cobalt.onrender.com/ — you should see
+#      a small JSON page with cobalt version info. That means it is up.
+#   6. The Clipper page already points at that URL by default (see
+#      COBALT_BACKEND_URL in app.js). Paste a YouTube link and try it.
+#      There is also a "Your Cobalt backend URL" box on the page if the
+#      URL ever changes — paste the new one there.
+#
+# Free-tier limits (Render, verified 2026-11-20):
+#   - $0, no card. 750 instance-hours a month.
+#   - Sleeps after 15 minutes with no traffic. First request after sleep
+#     takes about 30–60 seconds to wake the service — the Clipper page
+#     waits up to 2 minutes for that and says so on screen.
+#   - 512 MB RAM / 0.1 CPU. 5 GB bandwidth a month, then it stops until
+#     next month. A 720p video is roughly 10–20 MB a minute, so that is
+#     roughly 250–500 minutes of video a month through the backend.
+#   - No persistent disk (Cobalt does not need one — it streams, it never
+#     stores files).
+#
+# Honest limits of this backend itself:
+#   - YouTube can still block a datacenter server (Render) with a bot
+#     check. If Cobalt answers with an error, the Clipper page says so
+#     and points at uploading the video file instead — there is no
+#     fallback service (Piped/Invidious were removed: they do not work
+#     for the videos this tool clips).
+#   - No API key is set on purpose: the Clipper page is public, so any key
+#     in it would be visible to everyone anyway. The rate limits below
+#     (20 API requests / 60 s) are the only guard. If someone abuses the
+#     URL and burns the 5 GB, the fix is to add an API key on the server
+#     AND stop calling it from the public page (or accept the abuse).
+#     See README.md "Our own Cobalt backend" for details.
+
+services:
+  - type: web
+    name: leonida-clipper-cobalt
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    envVars:
+      # REQUIRED by Cobalt. Must be this service's own public URL, with a
+      # trailing slash — tunnel URLs are built from it. If you rename the
+      # service, change this to match.
+      - key: API_URL
+        value: https://leonida-clipper-cobalt.onrender.com/
+      # Only our Clipper page may call this API from a browser. Localhost
+      # testing is blocked by this on purpose — for local tests, set
+      # CORS_WILDCARD to 1 temporarily (see backend/DEPLOY.md).
+      - key: CORS_WILDCARD
+        value: "0"
+      - key: CORS_URL
+        value: https://leonidanights07.github.io
+      # Max video length: 3 hours (Cobalt default). Streamer VODs are long.
+      - key: DURATION_LIMIT
+        value: "10800"
+      # Tunnel links stay valid 5 minutes (Cobalt default is 90 s) so the
+      # browser has time to start a big download after the API answers.
+      - key: TUNNEL_LIFESPAN
+        value: "300"
+      # Rate limits (Cobalt defaults): 20 API requests per 60 s.
+      - key: RATELIMIT_WINDOW
+        value: "60"
+      - key: RATELIMIT_MAX
+        value: "20"

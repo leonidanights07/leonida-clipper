@@ -12,12 +12,15 @@
 //     picked, with a blurred background, H.264 + AAC, no watermark.
 //  5. Every clip gets a playable preview and a download button.
 //
-// A pasted YouTube link is fetched through Piped first, then Invidious
-// (both free public services, no key, no server of our own). Neither is
-// guaranteed: their servers can be down, slow, or blocked by YouTube for
-// some videos, so the page tries each one in turn and says plainly when
-// all of them failed — it never fakes a fetch. Uploading the video file
-// directly always works instead.
+// A pasted YouTube link is fetched through OUR OWN Cobalt backend only
+// (a free Cobalt instance on Render — see render.yaml and backend/DEPLOY.md).
+// The server fetches the video and tunnels the file back to the browser.
+// Piped and Invidious used to be tried too, but they do not work for the
+// videos this tool clips — Piped answers HTTP 500 for streamer videos,
+// and Invidious finds the video but the browser cannot download the
+// actual media file from it — so they were removed entirely (2026-11-20).
+// If our server is asleep, down, or blocked by YouTube, the page says so
+// plainly and points at uploading the video file, which always works.
 
 // ---------------------------------------------------------------------------
 // Pure helpers — exported so they can be unit-tested without a browser.
@@ -127,113 +130,83 @@ const FFMPEG_ESM = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm
 const FFMPEG_UTIL_ESM = "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js";
 const FFMPEG_CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 
-// Piped — free public front-ends for YouTube, no key, no server of our own.
-// Tried in this order when the user picks "Auto". These are free services
-// run by volunteers: any of them can be down, slow, rate-limited, or blocked
-// by YouTube at any time, so the code always falls through to the next one
-// and says plainly when all of them failed.
-export const PIPED_INSTANCES = [
-  "https://api.piped.private.coffee",
-  "https://pipedapi.wireway.ch",
-  "https://pipedapi.kavin.rocks",
-];
+// Our own Cobalt backend on Render (free tier). This is the URL the
+// service gets when it is deployed from render.yaml with the service name
+// `leonida-clipper-cobalt`. It does NOT exist until someone deploys it —
+// see backend/DEPLOY.md. Until then every call to it fails fast (DNS /
+// connection refused) and the page reports that the backend is not
+// deployed yet, and points at uploading the file instead.
+// The page also has a "Your Cobalt backend URL" box: if the deployed URL
+// is different (e.g. the service was renamed), paste it there and it is
+// saved in the browser. Never put an API key here — the page is public,
+// so anything in it is visible to everyone.
+export const COBALT_BACKEND_URL = "https://leonida-clipper-cobalt.onrender.com";
 
-// Invidious — free public front-ends for YouTube, no key, no server of
-// our own. Tried only after every Piped instance has failed.
-// Live-tested 2026-11-20: of the instances in the official list
-// (api.invidious.io/instances.json) and the usual public ones, ONLY
-// yt.chocolatemoo53.com actually answered /api/v1/videos with video data
-// — and it did so even for GTA 6 streamer videos (Clix, CarryMinati)
-// that Piped answers with HTTP 500. It is also the only listed instance
-// with api=true AND cors=true, which a browser page needs to call it.
-// The others failed on the day: nadeko 403, nerdvpn 403 access_denied,
-// tiekoetter 403, yewtu 403, pixora returns an HTML picker page (no API),
-// privacyredirect / datura / projectsegfau / flokinet unreachable.
-// If that one instance ever goes down, add a replacement that has
-// api=true and cors=true in the official instances list — do NOT add an
-// instance that has not been live-tested to return video data.
-export const INVIDIOUS_INSTANCES = [
-  "https://yt.chocolatemoo53.com",
-];
+// How long to wait for the Render free service to wake up. It sleeps
+// after 15 minutes idle; waking takes about 30–60 seconds. The page
+// retries the wake-up call, so a first fetch of the day can take up to
+// ~2 minutes before it gives up and says the backend could not
+// be reached.
+export const COBALT_WAKE_TIMEOUT_MS = 120000;
+export const COBALT_API_TIMEOUT_MS = 120000;
 
-/** Proxied media URL through an Invidious instance (bypasses the direct
- * googlevideo link's IP/CORS limits). Returns a 302 to a companion host;
- * if that host refuses, the caller falls back to the direct URL. */
-export function invidiousProxyUrl(base, videoId, itag) {
-  return `${base}/latest_version?id=${videoId}&itag=${itag}&local=true`;
-}
-
-function resolutionNumber(res) {
-  const m = String(res || "").match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 0;
-}
-
-function isH264Mp4(f) {
-  const type = String(f.type || "");
-  // H.264 video in an MP4 container. Avoid AV1 (codecs av01) — the
-  // in-browser cutter handles H.264 far better — and VP9/WebM.
-  return (
-    type.startsWith("video/mp4") &&
-    (f.container === "mp4" || type.includes("avc1")) &&
-    !type.includes("av01")
-  );
-}
-
-/**
- * Pick the streams to download from an Invidious /api/v1/videos/{id}
- * response. Invidious returns adaptive-only streams (no muxed
- * formatStreams in practice): a video-only track plus a separate audio
- * track, muxed later by ffmpeg — the same as the Piped video-only path.
- * Prefers H.264 MP4 at 720p, then 1080p, then 480p, then 360p, with the
- * best AAC (audio/mp4, itag 140) track.
- * Returns { videoUrl, audioUrl|null, videoItag, audioItag|null, quality,
- * hasAudio } or null. videoUrl/audioUrl are the direct googlevideo URLs;
- * callers should try the proxied latest_version URL first.
- */
-export function chooseInvidiousStreams(data) {
-  if (!data || typeof data !== "object") return null;
-  const videoId = data.videoId || null;
-
-  // 1. A muxed format stream with audio, if the instance ever returns one.
-  const muxed = (data.formatStreams || []).filter(
-    (f) => f && f.url && String(f.type || "").startsWith("video/"),
-  );
-  if (muxed.length) {
-    const sorted = [...muxed].sort(
-      (a, b) => resolutionNumber(b.resolution || b.quality) - resolutionNumber(a.resolution || a.quality),
-    );
-    const pick = sorted.find((f) => resolutionNumber(f.resolution || f.quality) <= 720) || sorted[sorted.length - 1];
-    return {
-      videoUrl: pick.url,
-      audioUrl: null,
-      videoItag: pick.itag != null ? String(pick.itag) : null,
-      audioItag: null,
-      quality: pick.quality || pick.resolution || "?",
-      hasAudio: true,
-      videoId,
-    };
-  }
-
-  // 2. Adaptive: best H.264 MP4 video + best AAC audio.
-  const adaptive = (data.adaptiveFormats || []).filter((f) => f && f.url);
-  const videos = adaptive.filter((f) => String(f.type || "").startsWith("video/") && isH264Mp4(f));
-  const audios = adaptive.filter((f) => String(f.type || "").startsWith("audio/mp4"));
-  if (!videos.length) return null;
-  const byRes = (a, b) => resolutionNumber(b.resolution) - resolutionNumber(a.resolution);
-  const video =
-    [...videos].sort(byRes).find((f) => resolutionNumber(f.resolution) <= 720) ||
-    [...videos].sort(byRes)[0];
-  const audio =
-    [...audios].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0] || null;
+/** The POST / body sent to a Cobalt instance for a YouTube URL.
+ * alwaysProxy:true is the whole point of our own backend: it forces
+ * Cobalt to tunnel the file through our server instead of answering
+ * with a redirect to a direct googlevideo link, which the browser
+ * cannot fetch (no CORS headers). 720p + h264/mp4 is what the
+ * in-browser cutter handles best. Pure — unit-testable. */
+export function cobaltRequestBody(url) {
   return {
-    videoUrl: video.url,
-    audioUrl: audio ? audio.url : null,
-    videoItag: video.itag != null ? String(video.itag) : null,
-    audioItag: audio && audio.itag != null ? String(audio.itag) : null,
-    quality: video.resolution || video.quality || "?",
-    hasAudio: !!audio,
-    videoId,
+    url,
+    videoQuality: "720",
+    downloadMode: "auto",
+    youtubeVideoCodec: "h264",
+    youtubeVideoContainer: "mp4",
+    alwaysProxy: true,
+    filenameStyle: "basic",
   };
+}
+
+/** Turn a Cobalt POST / response into something the downloader can use.
+ * Returns { kind, urls, filename, error }:
+ *  - tunnel / redirect: kind "file", urls [the one file URL].
+ *  - local-processing: kind "split" when tunnel[] has 2 entries (video +
+ *    audio to mux locally), kind "file" when it has 1.
+ *  - picker / error / anything else: kind "error" with a readable message.
+ * Relative URLs are resolved against the backend base. Pure — testable. */
+export function parseCobaltResponse(data, base) {
+  if (!data || typeof data !== "object") {
+    return { kind: "error", urls: [], filename: null, error: "empty answer from the server" };
+  }
+  const resolve = (u) => {
+    if (!u) return null;
+    try {
+      return new URL(u, base).toString();
+    } catch (e) {
+      return u;
+    }
+  };
+  if (data.status === "tunnel" || data.status === "redirect") {
+    if (!data.url) return { kind: "error", urls: [], filename: null, error: "server answered but gave no file link" };
+    return { kind: "file", urls: [resolve(data.url)], filename: data.filename || null, error: null };
+  }
+  if (data.status === "local-processing") {
+    const tunnels = (data.tunnel || []).map(resolve).filter(Boolean);
+    if (!tunnels.length) {
+      return { kind: "error", urls: [], filename: null, error: "server answered but gave no file link" };
+    }
+    const filename = (data.output && data.output.filename) || null;
+    return { kind: tunnels.length > 1 ? "split" : "file", urls: tunnels, filename, error: null };
+  }
+  if (data.status === "picker") {
+    return { kind: "error", urls: [], filename: null, error: "that link has several videos in it — open one video, not a list" };
+  }
+  if (data.status === "error" && data.error) {
+    const code = data.error.code || "unknown error";
+    return { kind: "error", urls: [], filename: null, error: `server said: ${code}` };
+  }
+  return { kind: "error", urls: [], filename: null, error: `unexpected answer from the server (status: ${data.status || "?"})` };
 }
 
 /** Pull the 11-character video ID out of any YouTube URL shape. */
@@ -251,52 +224,6 @@ export function extractVideoId(text) {
   for (const p of patterns) {
     const m = u.match(p);
     if (m) return m[1];
-  }
-  return null;
-}
-
-function qualityNumber(q) {
-  const m = String(q || "").match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 0;
-}
-
-/**
- * Pick the streams to download from a Piped /streams/{id} response.
- * Prefers a muxed (video+audio) MP4 at 720p/1080p; if the only good video
- * is video-only, pairs it with the best audio stream to mux later.
- * Returns { videoUrl, audioUrl|null, quality, hasAudio } or null.
- */
-export function choosePipedStreams(data) {
-  if (!data || typeof data !== "object") return null;
-  const videos = (data.videoStreams || []).filter((v) => v && v.url);
-  const audios = (data.audioStreams || []).filter((a) => a && a.url);
-  const mp4 = (list) => list.filter((v) => (v.mimeType || "").includes("video/mp4") || v.format === "MPEG_4");
-  const best = (list) =>
-    [...list].sort((a, b) => qualityNumber(b.quality) - qualityNumber(a.quality))
-      .find((v) => qualityNumber(v.quality) <= 1080) || list[0];
-
-  // 1. Muxed MP4 with audio — simplest, one download.
-  const muxed = mp4(videos).filter((v) => v.videoOnly === false);
-  if (muxed.length) {
-    const v = best(muxed);
-    return { videoUrl: v.url, audioUrl: null, quality: v.quality || "?", hasAudio: true };
-  }
-  // 2. Best video-only MP4 + best audio stream (muxed later by ffmpeg).
-  const videoOnly = mp4(videos).filter((v) => v.videoOnly !== false);
-  if (videoOnly.length) {
-    const v = best(videoOnly);
-    const audio = [...audios]
-      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-    if (audio) {
-      return { videoUrl: v.url, audioUrl: audio.url, quality: v.quality || "?", hasAudio: true };
-    }
-    return { videoUrl: v.url, audioUrl: null, quality: v.quality || "?", hasAudio: false };
-  }
-  // 3. Any other video stream with a URL (e.g. webm) — last resort.
-  if (videos.length) {
-    const v = best(videos);
-    const audio = [...audios].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-    return { videoUrl: v.url, audioUrl: audio ? audio.url : null, quality: v.quality || "?", hasAudio: !!audio };
   }
   return null;
 }
@@ -326,9 +253,9 @@ if (typeof document !== "undefined") {
   const downloadAllBtn = $("downloadAllBtn");
 
   let selectedFile = null;
-  let selectedAudioFile = null; // separate audio track, when Piped gives video-only video
+  let selectedAudioFile = null; // separate audio track, when the server gives video-only video
   let selectedDuration = 0;
-  let pipedTitle = "";
+  let fetchedTitle = "";
   let clips = []; // {start, end, score, filename, url, size}
   let ffmpeg = null;
   let ffmpegUtil = null;
@@ -369,7 +296,7 @@ if (typeof document !== "undefined") {
     }
     selectedFile = file;
     selectedAudioFile = null;
-    pipedTitle = "";
+    fetchedTitle = "";
     selectedDuration = 0;
     ytExplainer.classList.remove("show");
     clearClips();
@@ -412,6 +339,15 @@ if (typeof document !== "undefined") {
     ytNotice.classList.toggle("show", isYouTubeUrl(ytUrl.value));
   });
 
+  // Restore a saved custom Cobalt backend URL (if the deployed URL is
+  // different from the default — e.g. the Render service was renamed).
+  try {
+    const savedCobalt = localStorage.getItem("leonida-cobalt-url");
+    if (savedCobalt && savedCobalt.startsWith("http") && savedCobalt.replace(/\/$/, "") !== COBALT_BACKEND_URL) {
+      $("customCobalt").value = savedCobalt;
+    }
+  } catch (e) { /* private mode */ }
+
   async function loadCutter() {
     if (ffmpeg) return ffmpeg;
     setStatus("Loading the video cutter for the first time (about 30 MB) — this can take a minute on a slow connection…");
@@ -446,201 +382,125 @@ if (typeof document !== "undefined") {
     return new Blob(chunks, { type: res.headers.get("content-type") || undefined });
   }
 
-  // Which fetch services to try, from the combined "Fetch the link with"
-  // selector in Step 1. Returns { piped: [...], invidious: [...] }.
-  // "auto" tries every Piped instance first, then every Invidious one.
-  // A "piped:URL" / "invidious:URL" choice tries only that one server.
+  // The link-fetch path: our own Cobalt backend only. There used to be
+  // a "Fetch the link with" selector for Piped / Invidious, but both were
+  // removed (2026-11-20) because they do not work for the videos this
+  // tool clips. The Cobalt URL comes from the "Your Cobalt backend URL"
+  // box if filled in (saved in the browser), otherwise the default
+  // COBALT_BACKEND_URL.
   function fetchPlan() {
-    const picked = $("fetchServer").value || "auto";
-    const custom = ($("customInvidious").value || "").trim().replace(/\/$/, "");
-    const invidious = [...INVIDIOUS_INSTANCES];
-    if (custom && custom.startsWith("http") && !invidious.includes(custom)) {
-      invidious.push(custom);
-    }
-    if (picked === "auto") return { piped: [...PIPED_INSTANCES], invidious };
-    if (picked.startsWith("piped:")) return { piped: [picked.slice("piped:".length)], invidious: [] };
-    if (picked.startsWith("invidious:")) return { piped: [], invidious: [picked.slice("invidious:".length), ...invidious.filter((u) => u !== picked.slice("invidious:".length))] };
-    return { piped: [...PIPED_INSTANCES], invidious };
+    return { cobalt: cobaltBaseUrl() };
   }
 
   /**
-   * Fetch a YouTube video through Piped. Tries each instance in turn.
+   * Fetch a YouTube video through our own Cobalt backend on Render.
+   *  1. Wake the free service: GET / — it sleeps after 15 min idle and
+   *     takes ~30–60 s to wake. Retried once on 502/503/timeout.
+   *  2. POST / with the Cobalt body (alwaysProxy so we get a tunnel, not
+   *     a direct link the browser cannot fetch).
+   *  3. Download the tunnel URL immediately — tunnel links live 5 min
+   *     (TUNNEL_LIFESPAN=300 on our instance).
    * Returns { file, audioFile|null, instance, quality, title }.
-   * Throws an Error listing what each instance said, when all of them fail.
-   * Never pretends it worked.
+   * Throws an Error describing what happened, when it fails — the caller
+   * Throws an Error describing what happened. Never pretends it worked.
    */
-  async function fetchViaPiped(videoId, bases) {
-    const failures = [];
-    for (const base of bases) {
-      const host = base.replace("https://", "");
-      try {
-        setStatus(`Asking ${host} for the video…`);
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15000);
-        let res;
-        try {
-          res = await fetch(`${base}/streams/${videoId}`, { signal: ctrl.signal });
-        } finally {
-          clearTimeout(timer);
-        }
-        if (!res.ok) {
-          failures.push(`${host}: answered HTTP ${res.status}`);
-          continue;
-        }
-        const data = await res.json();
-        if (data.error || data.message) {
-          const msg = String(data.message || data.error).slice(0, 160);
-          failures.push(`${host}: ${msg}`);
-          continue;
-        }
-        const choice = choosePipedStreams(data);
-        if (!choice) {
-          failures.push(`${host}: no downloadable video stream in the answer`);
-          continue;
-        }
-        const title = (data.title || videoId).replace(/[^\w\- ]+/g, "").trim().slice(0, 50) || videoId;
-        setStatus(`Found it on ${host} (${choice.quality}) — downloading the video…`);
-        log(`Piped (${host}): ${data.title || videoId} · ${choice.quality} · ${choice.audioUrl ? "video + separate audio" : "video with audio"}`);
-        const videoBlob = await downloadWithProgress(choice.videoUrl, "video", (got, total) => {
-          setStatus(`Downloading the video from ${host} — ${formatSize(got)}${total ? ` of ${formatSize(total)}` : ""}…`);
-          if (total) setProgress(0.05 + 0.1 * (got / total));
-        });
-        let audioBlob = null;
-        if (choice.audioUrl) {
-          setStatus(`Downloading the audio track from ${host}…`);
-          try {
-            audioBlob = await downloadWithProgress(choice.audioUrl, "audio", null);
-          } catch (e) {
-            // Video-only is still cuttable, just silent — say so and carry on.
-            log(`Audio track download failed (${e.message}) — cutting the video without sound.`);
-            audioBlob = null;
-          }
-        }
-        return {
-          file: new File([videoBlob], `${title}.mp4`, { type: "video/mp4" }),
-          audioFile: audioBlob ? new File([audioBlob], `${title}-audio.m4a`, { type: "audio/mp4" }) : null,
-          instance: host,
-          quality: choice.quality,
-          title: data.title || title,
-        };
-      } catch (err) {
-        failures.push(`${host}: ${err.name === "AbortError" ? "timed out after 15s" : err.message}`);
-      }
-    }
-    throw new Error(failures.join(" | ") || "all Piped instances failed");
-  }
-
-  // Download a media URL, trying the Invidious-proxied URL first (it goes
-  // through the instance, bypassing the direct link's IP/CORS limits) and
-  // then the direct googlevideo URL. Throws when both fail.
-  async function downloadInvidiousMedia(base, videoId, itag, directUrl, label, onBytes) {
+  async function fetchViaCobalt(videoUrl, base) {
     const host = base.replace("https://", "");
-    const attempts = [];
-    if (itag) attempts.push({ url: invidiousProxyUrl(base, videoId, itag), via: `proxied (${host})` });
-    if (directUrl) attempts.push({ url: directUrl, via: `direct (${host})` });
-    let lastErr = null;
-    for (const a of attempts) {
+    // 1. Wake-up: GET / returns instance info JSON when it is up.
+    setStatus(`Waking up our server (${host}) — the free service sleeps after 15 minutes, so the first try can take about a minute…`);
+    let awake = false;
+    let wakeErr = null;
+    for (let attempt = 0; attempt < 2 && !awake; attempt++) {
       try {
-        return await downloadWithProgress(a.url, label, onBytes);
-      } catch (e) {
-        lastErr = e;
-        log(`Invidious ${label} via ${a.via} failed (${e.message}) — trying the other way.`);
-      }
-    }
-    throw lastErr || new Error(`could not download ${label}`);
-  }
-
-  /**
-   * Fetch a YouTube video through Invidious. Tries each instance in turn.
-   * Same return shape as fetchViaPiped. Invidious returns adaptive-only
-   * streams, so the video is video-only H.264 MP4 and the audio is a
-   * separate AAC track, muxed later by ffmpeg.
-   */
-  async function fetchViaInvidious(videoId, bases) {
-    const failures = [];
-    for (const base of bases) {
-      const host = base.replace("https://", "");
-      try {
-        setStatus(`Asking Invidious (${host}) for the video…`);
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15000);
+        const timer = setTimeout(() => ctrl.abort(), COBALT_WAKE_TIMEOUT_MS);
         let res;
         try {
-          res = await fetch(`${base}/api/v1/videos/${videoId}`, { signal: ctrl.signal });
+          res = await fetch(`${base}/`, { signal: ctrl.signal });
         } finally {
           clearTimeout(timer);
         }
-        if (!res.ok) {
-          failures.push(`${host}: answered HTTP ${res.status}`);
-          continue;
+        if (res.ok) {
+          awake = true;
+        } else if (res.status === 502 || res.status === 503) {
+          wakeErr = new Error(`server is waking up (HTTP ${res.status})`);
+          await new Promise((r) => setTimeout(r, 5000));
+        } else {
+          throw new Error(`server answered HTTP ${res.status}`);
         }
-        const data = await res.json();
-        if (data.error) {
-          failures.push(`${host}: ${String(data.error).slice(0, 160)}`);
-          continue;
-        }
-        const choice = chooseInvidiousStreams(data);
-        if (!choice) {
-          failures.push(`${host}: no downloadable video stream in the answer`);
-          continue;
-        }
-        const title = (data.title || videoId).replace(/[^\w\- ]+/g, "").trim().slice(0, 50) || videoId;
-        setStatus(`Found it on Invidious (${host}, ${choice.quality}) — downloading the video…`);
-        log(`Invidious (${host}): ${data.title || videoId} · ${choice.quality} · video + separate audio`);
-        const videoBlob = await downloadInvidiousMedia(base, videoId, choice.videoItag, choice.videoUrl, "video", (got, total) => {
-          setStatus(`Downloading the video from Invidious (${host}) — ${formatSize(got)}${total ? ` of ${formatSize(total)}` : ""}…`);
-          if (total) setProgress(0.05 + 0.1 * (got / total));
-        });
-        let audioBlob = null;
-        if (choice.audioUrl) {
-          setStatus(`Downloading the audio track from Invidious (${host})…`);
-          try {
-            audioBlob = await downloadInvidiousMedia(base, videoId, choice.audioItag, choice.audioUrl, "audio", null);
-          } catch (e) {
-            log(`Audio track download failed (${e.message}) — cutting the video without sound.`);
-            audioBlob = null;
-          }
-        }
-        return {
-          file: new File([videoBlob], `${title}.mp4`, { type: "video/mp4" }),
-          audioFile: audioBlob ? new File([audioBlob], `${title}-audio.m4a`, { type: "audio/mp4" }) : null,
-          instance: `Invidious ${host}`,
-          quality: choice.quality,
-          title: data.title || title,
-        };
       } catch (err) {
-        failures.push(`${host}: ${err.name === "AbortError" ? "timed out after 15s" : err.message}`);
+        wakeErr = err;
+        if (attempt === 0) {
+          log(`Cobalt wake-up try ${attempt + 1} failed (${err.name === "AbortError" ? "timed out" : err.message}) — trying once more.`);
+          await new Promise((r) => setTimeout(r, 5000));
+        }
       }
     }
-    throw new Error(failures.join(" | ") || "all Invidious instances failed");
+    if (!awake) {
+      throw new Error(wakeErr ? `our server didn't answer (${wakeErr.name === "AbortError" ? "timed out after 2 minutes — it may not be deployed yet, see backend/DEPLOY.md" : wakeErr.message})` : "our server didn't answer");
+    }
+    // 2. Ask Cobalt for the video.
+    setStatus(`Our server is awake — asking it for the video…`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), COBALT_API_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(`${base}/`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(cobaltRequestBody(videoUrl)),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const errBody = await res.json();
+        if (errBody && errBody.error && errBody.error.code) detail = errBody.error.code;
+      } catch (e) { /* keep the HTTP status */ }
+      throw new Error(`our server answered ${detail}`);
+    }
+    const data = await res.json();
+    const parsed = parseCobaltResponse(data, base);
+    if (parsed.kind === "error") throw new Error(parsed.error);
+    const title = (parsed.filename || "video").replace(/\.[^.]+$/, "").replace(/[^\w\- ]+/g, "").trim().slice(0, 50) || "video";
+    // 3. Download the tunnel file(s) right now — the links expire in minutes.
+    setStatus(`Our server found it — downloading the video through our server…`);
+    log(`Cobalt (${host}): ${parsed.kind === "split" ? "video + separate audio" : "video with audio"} · 720p · tunnel`);
+    const videoBlob = await downloadWithProgress(parsed.urls[0], "video", (got, total) => {
+      setStatus(`Downloading the video from our server — ${formatSize(got)}${total ? ` of ${formatSize(total)}` : ""}…`);
+      if (total) setProgress(0.05 + 0.1 * (got / total));
+    });
+    let audioBlob = null;
+    if (parsed.kind === "split" && parsed.urls[1]) {
+      setStatus(`Downloading the audio track from our server…`);
+      try {
+        audioBlob = await downloadWithProgress(parsed.urls[1], "audio", null);
+      } catch (e) {
+        log(`Audio track download failed (${e.message}) — cutting the video without sound.`);
+        audioBlob = null;
+      }
+    }
+    return {
+      file: new File([videoBlob], `${title}.mp4`, { type: "video/mp4" }),
+      audioFile: audioBlob ? new File([audioBlob], `${title}-audio.m4a`, { type: "audio/mp4" }) : null,
+      instance: `our server (${host})`,
+      quality: "720p",
+      title,
+    };
   }
 
   /**
-   * Fetch a pasted YouTube link: Piped first, then Invidious. Throws one
-   * error listing what every service said, so the page can show it honestly.
+   * Fetch a pasted YouTube link through our own Cobalt backend only.
+   * Throws the backend's error, so the page can show it honestly and
+   * point at uploading the file instead. There is no fallback service.
    */
-  async function fetchViaLink(videoId) {
+  async function fetchViaLink(videoId, videoUrl) {
     const plan = fetchPlan();
-    const failures = [];
-    if (plan.piped.length) {
-      try {
-        const got = await fetchViaPiped(videoId, plan.piped);
-        return { ...got, source: "Piped" };
-      } catch (err) {
-        failures.push(`Piped — ${err.message}`);
-      }
-    }
-    if (plan.invidious.length) {
-      setStatus("Piped couldn't fetch it — trying Invidious instead…");
-      log("Piped failed, falling back to Invidious.");
-      try {
-        const got = await fetchViaInvidious(videoId, plan.invidious);
-        return { ...got, source: "Invidious" };
-      } catch (err) {
-        failures.push(`Invidious — ${err.message}`);
-      }
-    }
-    throw new Error(failures.join(" || ") || "all fetch services failed");
+    const got = await fetchViaCobalt(videoUrl, plan.cobalt);
+    return { ...got, source: "our server" };
   }
 
   async function analyseAudio(file) {
@@ -678,8 +538,9 @@ if (typeof document !== "undefined") {
     };
 
     // No file uploaded — try to fetch the pasted YouTube link, first
-    // through Piped, then through Invidious. If neither can get it, say
-    // so plainly and point at uploading the file.
+    // through our own Cobalt backend only. If it cannot get it, say
+    // none of them can get it, say so plainly and point at uploading
+    // the file.
     if (!selectedFile) {
       if (isYouTubeUrl(link)) {
         const videoId = extractVideoId(link);
@@ -690,10 +551,10 @@ if (typeof document !== "undefined") {
         }
         setProgress(0.02);
         try {
-          const fetched = await fetchViaLink(videoId);
+          const fetched = await fetchViaLink(videoId, link);
           selectedFile = fetched.file;
           selectedAudioFile = fetched.audioFile;
-          pipedTitle = fetched.title;
+          fetchedTitle = fetched.title;
           selectedDuration = 0;
           clearClips();
           fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · fetched via ${fetched.source} (${fetched.instance}, ${fetched.quality})`;
@@ -714,7 +575,7 @@ if (typeof document !== "undefined") {
           });
         } catch (err) {
           ytExplainer.classList.add("show");
-          $("pipedError").innerHTML =
+          $("fetchError").innerHTML =
             `<strong>What happened:</strong> ${escapeHtml(err.message)}<br>` +
             `You can change the fetch server in Step 1 and try again, or upload the video file instead — that always works.`;
           ytExplainer.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -755,7 +616,7 @@ if (typeof document !== "undefined") {
       let hasAudio = true;
       let duration = selectedDuration;
       try {
-        // If Piped gave video-only video plus a separate audio track,
+        // If the server gave video-only video plus a separate audio track,
         // analyse the audio track (the video file itself has no sound).
         const analysis = await analyseAudio(selectedAudioFile || selectedFile);
         duration = analysis.duration || duration;
@@ -873,7 +734,7 @@ if (typeof document !== "undefined") {
       meta.className = "meta";
       meta.innerHTML =
         `<div class="t">Clip ${i + 1} · ${formatTime(c.start)}–${formatTime(c.end)}</div>` +
-        `<div class="s">Energy ${c.score.toFixed(2)} · ${formatSize(c.size)} · ${dim.label}</div>`;
+        `<div class="s"><span class="energy">★ Energy ${c.score.toFixed(2)}</span> · ${formatSize(c.size)} · ${dim.label}</div>`;
       const dl = document.createElement("a");
       dl.className = "dl";
       dl.href = c.url;
@@ -890,7 +751,7 @@ if (typeof document !== "undefined") {
 
   generateBtn.addEventListener("click", generate);
 
-  $("pipedRetryBtn").addEventListener("click", () => {
+  $("retryBtn").addEventListener("click", () => {
     ytExplainer.classList.remove("show");
     generate();
   });
