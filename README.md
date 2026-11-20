@@ -54,7 +54,9 @@ A real browser test on the live site found two bugs, both fixed here:
    never contacted. `cobaltBaseUrl()` is now defined in `app.js`: it reads
    the "Your server address" box (saved in the browser as it is typed),
    then a previously saved URL, then the default
-   `https://leonida-clipper-cobalt.onrender.com`. The pure part is exported
+   `https://leonida-clipper-cobalt.onrender.com` (since 2026-11-20 the
+   default is the yt-dlp service, `https://leonida-clipper-yt.onrender.com`
+   — see above). The pure part is exported
    as `resolveCobaltBaseUrl(custom, saved)` and unit-tested.
 2. **Cutting failed in the browser.** Uploading a file worked and clip
    detection worked, but Generate failed with "Failed to construct
@@ -129,11 +131,24 @@ deploy it is in this repo:
 - `backend/docker-compose.yml` — run the same backend locally
   with Docker, for testing.
 
-The deployed URL is `https://leonida-clipper-cobalt.onrender.com`
-(service name `leonida-clipper-cobalt`). The page points at it by
+The deployed URL is `https://leonida-clipper-yt.onrender.com`
+(service name `leonida-clipper-yt`). The page points at it by
 default (`COBALT_BACKEND_URL` in `app.js`). If the service is ever
 renamed, paste the new URL into the "Your server address" box on the
 page — it is saved in the browser — and update `API_URL` in Render.
+
+**2026-11-20 — Cobalt replaced by a yt-dlp backend for YouTube:**
+our Cobalt backend (`leonida-clipper-cobalt`, still deployed) answers
+`error.api.fetch.fail` for every YouTube link — Cobalt's YouTube
+pipeline is bot-blocked on Render's datacenter IP. The new service
+(`backend-yt/`, `leonida-clipper-yt`) speaks the same Cobalt API
+contract but fetches with yt-dlp, which handles YouTube's defenses
+far better. Verified end-to-end from a test VM on 2026-11-20: both a
+normal video and a GTA 6 streamer video returned a full 720p
+H.264+AAC MP4. Whether yt-dlp works from **Render's** IP is unproven
+until this service is deployed and a link is pasted — that test
+decides it. Deploy steps are in `backend-yt/DEPLOY-YT.md`. The Cobalt
+URL still works as a fallback via the page's server-address box.
 
 No API key is set on purpose: the Clipper page is public, so any key
 in it would be visible to everyone anyway. The rate limits in

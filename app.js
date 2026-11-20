@@ -163,17 +163,24 @@ const FFMPEG_CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist
 // hosted (GitHub Pages serves it under /leonida-clipper/, not the root).
 export const FFMPEG_WORKER_URL = new URL("vendor/ffmpeg/worker.js", import.meta.url).toString();
 
-// Our own Cobalt backend on Render (free tier). This is the URL the
+// Our own video-fetch backend on Render (free tier). This is the URL the
 // service gets when it is deployed from render.yaml with the service name
-// `leonida-clipper-cobalt`. It does NOT exist until someone deploys it —
-// see backend/DEPLOY.md. Until then every call to it fails fast (DNS /
-// connection refused) and the page reports that the backend is not
+// `leonida-clipper-yt`. It does NOT exist until someone deploys it —
+// see backend-yt/DEPLOY-YT.md. Until then every call to it fails fast
+// (DNS / connection refused) and the page reports that the backend is not
 // deployed yet, and points at uploading the file instead.
+// NOTE (2026-11-20): this used to point at our Cobalt backend
+// (leonida-clipper-cobalt), but Cobalt answers "error.api.fetch.fail"
+// for every YouTube link — its YouTube pipeline is bot-blocked on
+// Render's datacenter IP. This service speaks the SAME Cobalt API
+// contract but fetches with yt-dlp (backend-yt/server.py), which
+// handles YouTube's defenses far better. The Cobalt URL still works
+// as a fallback: paste it in the "server address" box on the page.
 // The page also has a "Your Cobalt backend URL" box: if the deployed URL
 // is different (e.g. the service was renamed), paste it there and it is
 // saved in the browser. Never put an API key here — the page is public,
 // so anything in it is visible to everyone.
-export const COBALT_BACKEND_URL = "https://leonida-clipper-cobalt.onrender.com";
+export const COBALT_BACKEND_URL = "https://leonida-clipper-yt.onrender.com";
 
 /** Pick the Cobalt backend URL: the "Your server address" box wins, then a
  * URL saved in the browser, then the default above. Pure — unit-testable.

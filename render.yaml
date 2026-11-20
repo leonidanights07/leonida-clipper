@@ -87,3 +87,30 @@ services:
         value: "60"
       - key: RATELIMIT_MAX
         value: "20"
+
+  # --- Second service: yt-dlp YouTube backend (added 2026-11-20) ---
+  # Cobalt (above) answers "error.api.fetch.fail" for every YouTube link:
+  # its YouTube pipeline is bot-blocked on Render's datacenter IP.
+  # This service speaks the SAME Cobalt API contract (GET / info,
+  # POST / -> tunnel, GET /v/<token> -> MP4) but fetches with yt-dlp,
+  # which handles YouTube's defenses far better. Verified end-to-end
+  # from a test VM on 2026-11-20 for both a normal video and a GTA 6
+  # streamer video (full 720p H.264+AAC MP4 download). Whether yt-dlp
+  # works from RENDER's IP is UNPROVEN until this service is deployed
+  # and a link is pasted — that is the test that decides it.
+  # The Clipper page now points at this service by default
+  # (COBALT_BACKEND_URL in app.js); the Cobalt URL still works as a
+  # fallback by pasting it in the page's "server address" box.
+  - type: web
+    name: leonida-clipper-yt
+    runtime: docker
+    dockerfilePath: ./backend-yt/Dockerfile
+    dockerContext: ./backend-yt
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    envVars:
+      - key: API_URL
+        value: https://leonida-clipper-yt.onrender.com
+      - key: CORS_URL
+        value: https://leonidanights07.github.io
