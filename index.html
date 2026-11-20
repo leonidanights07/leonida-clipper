@@ -6,100 +6,70 @@
 <title>Leonida Clipper — Free, Unlimited, No Watermark</title>
 <style>
   :root{
-    --bg:#0a0616; --card:#17102a; --card2:#1f1538;
-    --pink:#ff2e88; --purple:#a855f7; --orange:#ff8a00; --gold:#ffc233;
-    --text:#f8f3ff; --muted:#c3b2e8; --border:#3a2a63; --green:#34d399;
-    --glow-pink:0 0 24px rgba(255,46,136,.45);
+    --bg:#0a0616; --card:#150d28; --card2:#1d1338;
+    --pink:#ff2e88; --purple:#a855f7; --orange:#ff8a00;
+    --text:#f8f3ff; --muted:#b8a8dd; --border:#33254f; --green:#34d399;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    background:var(--bg);color:var(--text);min-height:100vh}
-  /* ---- Sunset hero ---- */
-  .hero{position:relative;overflow:hidden;text-align:center;
-    padding:34px 18px 0;
-    background:
-      radial-gradient(700px 340px at 50% 108%, rgba(255,138,0,.55), transparent 65%),
-      radial-gradient(900px 420px at 50% 118%, rgba(255,46,136,.5), transparent 60%),
-      linear-gradient(180deg,#1a0b2e 0%,#3b1150 55%,#7a1e5e 100%)}
-  .sun{width:150px;height:150px;margin:6px auto 0;border-radius:50%;
-    background:radial-gradient(circle at 50% 40%,#ffe9a8 0%,#ffc233 35%,#ff8a00 62%,#ff2e88 100%);
-    box-shadow:0 0 60px 18px rgba(255,138,0,.55),0 0 120px 40px rgba(255,46,136,.35)}
-  .hero h1{position:relative;z-index:2;margin:14px 0 0;font-size:clamp(40px,9vw,72px);
-    font-weight:900;letter-spacing:2px;line-height:.95;
-    background:linear-gradient(90deg,#ffc233,#ff8a00 25%,#ff2e88 55%,#a855f7 85%);
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 2px 18px rgba(255,46,136,.55))}
-  .hero .nights{display:block;font-size:clamp(26px,6vw,44px);letter-spacing:10px;
-    background:linear-gradient(90deg,#ff7ec2,#ff2e88);
-    -webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero .sub{position:relative;z-index:2;color:#efe6ff;margin:10px 0 0;font-size:16px;
-    text-shadow:0 1px 12px rgba(0,0,0,.5)}
-  .badges{position:relative;z-index:2;display:flex;gap:8px;justify-content:center;
-    flex-wrap:wrap;margin:16px 0 0;padding:0 8px}
-  .badge{border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:7px 13px;
-    font-size:13px;color:#fff;background:rgba(10,6,22,.45);backdrop-filter:blur(4px)}
-  .badge b{color:#7dffb0}
-  .skyline{display:block;width:100%;height:86px;margin-top:18px}
-  main{max-width:780px;margin:0 auto;padding:20px 16px 48px}
-  /* ---- Cards ---- */
-  .card{background:linear-gradient(180deg,#1c1233,#150d28);
-    border:1px solid var(--border);border-radius:22px;padding:22px;margin-top:18px;
-    box-shadow:0 10px 32px rgba(0,0,0,.45);transition:border-color .2s, box-shadow .2s, transform .2s}
-  .card:hover{border-color:#6b4bb3;box-shadow:0 10px 32px rgba(0,0,0,.45),0 0 0 1px rgba(168,85,247,.25),0 0 28px rgba(168,85,247,.18)}
-  .card h2{margin:0 0 6px;font-size:21px;letter-spacing:.2px}
-  .card p{color:var(--muted);font-size:15px;line-height:1.55;margin:8px 0}
-  .stepnum{display:inline-block;background:linear-gradient(90deg,var(--pink),var(--purple));
-    border-radius:999px;padding:3px 12px;font-size:14px;font-weight:800;margin-right:8px;
-    box-shadow:var(--glow-pink)}
-  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:16px 0 6px;
-    text-transform:uppercase;letter-spacing:.6px}
+    background:var(--bg);color:var(--text);min-height:100vh;
+    font-size:16px;line-height:1.55}
+  /* ---- Calm hero ---- */
+  header{max-width:720px;margin:0 auto;padding:56px 20px 8px;text-align:center}
+  header .mark{font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+    color:var(--pink)}
+  header h1{margin:12px 0 0;font-size:clamp(32px,7vw,48px);font-weight:800;
+    letter-spacing:1px;line-height:1.05}
+  header h1 span{color:var(--pink)}
+  header p{color:var(--muted);margin:12px auto 0;max-width:480px;font-size:16px}
+  main{max-width:720px;margin:0 auto;padding:24px 16px 48px}
+  /* ---- One main card ---- */
+  .card{background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:28px}
+  @media (max-width:560px){.card{padding:20px}}
+  .card h2{margin:0 0 4px;font-size:19px;font-weight:700}
+  .card .hint{color:var(--muted);font-size:15px;margin:0 0 20px}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);
+    margin:20px 0 6px;text-transform:uppercase;letter-spacing:.6px}
   input[type="url"],input[type="text"],select{width:100%;padding:13px 14px;border-radius:12px;
-    border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:15px;
-    transition:border-color .2s, box-shadow .2s}
-  input[type="url"]:focus,input[type="text"]:focus,select:focus{outline:none;
-    border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,46,136,.25)}
+    border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:15px}
+  input[type="url"]:focus,input[type="text"]:focus,select:focus{outline:none;border-color:var(--pink)}
   .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   @media (max-width:560px){.row{grid-template-columns:1fr}}
   /* ---- Buttons ---- */
-  button{width:100%;margin-top:18px;padding:16px;border:0;border-radius:16px;cursor:pointer;
-    font-size:18px;font-weight:800;color:#fff;letter-spacing:.4px;
-    background:linear-gradient(90deg,var(--orange),var(--pink) 45%,var(--purple));
-    box-shadow:0 8px 28px rgba(255,46,136,.45);transition:transform .15s, box-shadow .15s, filter .15s}
-  button:hover:not(:disabled){transform:translateY(-2px) scale(1.01);
-    box-shadow:0 12px 36px rgba(255,46,136,.6);filter:brightness(1.08)}
-  button:active:not(:disabled){transform:translateY(0) scale(.99)}
+  button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:14px;cursor:pointer;
+    font-size:17px;font-weight:700;color:#fff;background:var(--pink)}
+  button:hover:not(:disabled){filter:brightness(1.1)}
   button.secondary{background:transparent;border:1px solid var(--border);color:var(--text);
-    box-shadow:none;font-size:15px}
-  button.secondary:hover:not(:disabled){border-color:var(--pink);box-shadow:0 0 18px rgba(255,46,136,.25)}
+    font-size:15px}
+  button.secondary:hover:not(:disabled){border-color:var(--pink)}
   button:disabled{opacity:.55;cursor:not-allowed}
   /* ---- Drop zone ---- */
-  .dropzone{border:2px dashed #7a5cc9;border-radius:18px;padding:30px 16px;
-    text-align:center;color:var(--muted);cursor:pointer;background:var(--card2);
-    transition:border-color .2s, background .2s, box-shadow .2s}
-  .dropzone:hover{border-color:var(--pink);box-shadow:0 0 24px rgba(255,46,136,.2)}
-  .dropzone.drag{border-color:var(--pink);background:#ff2e8814;box-shadow:0 0 28px rgba(255,46,136,.3)}
+  .dropzone{border:2px dashed #5b4391;border-radius:16px;padding:32px 16px;
+    text-align:center;color:var(--muted);cursor:pointer;background:var(--card2)}
+  .dropzone:hover{border-color:var(--pink)}
+  .dropzone.drag{border-color:var(--pink);background:#ff2e8814}
   .dropzone strong{color:var(--text);font-size:17px}
-  .dropzone .up{font-size:30px;display:block;margin-bottom:6px}
-  .or{text-align:center;color:var(--muted);margin:18px 0 4px;font-size:13px;
+  .or{text-align:center;color:var(--muted);margin:20px 0 0;font-size:13px;
     text-transform:uppercase;letter-spacing:1.5px}
-  .or::before,.or::after{content:" — "}
   .fileinfo{margin-top:12px;font-size:14px;color:var(--green)}
   .notice{display:none;border-left:3px solid var(--orange);padding:12px 14px;
     background:#ff8a0012;border-radius:10px;font-size:14px;line-height:1.55;color:var(--muted);margin-top:14px}
   .notice.show{display:block}
   .notice strong{color:var(--text)}
-  .explainer{display:none;border:1px solid var(--orange);border-radius:18px;padding:20px;
-    background:#ff8a0012;margin-top:18px}
+  details.advanced{margin-top:20px;border-top:1px solid var(--border);padding-top:14px}
+  details.advanced summary{cursor:pointer;color:var(--muted);font-size:14px;font-weight:600}
+  details.advanced p{color:var(--muted);font-size:14px;margin:8px 0 0}
+  .explainer{display:none;border:1px solid var(--orange);border-radius:16px;padding:20px;
+    background:#ff8a0012;margin-top:20px}
   .explainer.show{display:block}
-  .explainer h3{margin:0 0 8px;color:var(--orange);font-size:19px}
+  .explainer h3{margin:0 0 8px;color:var(--orange);font-size:18px}
   .explainer p,.explainer li{color:var(--muted);font-size:14px;line-height:1.6}
   .explainer ol{margin:8px 0;padding-left:20px}
-  .progress{height:12px;border-radius:999px;background:var(--card2);overflow:hidden;
-    margin-top:14px;display:none;box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
+  .progress{height:10px;border-radius:999px;background:var(--card2);overflow:hidden;
+    margin-top:16px;display:none}
   .progress.show{display:block}
-  .progress > div{height:100%;width:0%;border-radius:999px;
-    background:linear-gradient(90deg,var(--orange),var(--pink),var(--purple));
-    box-shadow:0 0 12px rgba(255,46,136,.6);transition:width .3s}
+  .progress > div{height:100%;width:0%;border-radius:999px;background:var(--pink);transition:width .3s}
   .status{font-size:15px;color:var(--muted);margin-top:12px;line-height:1.55;min-height:22px}
   .status b{color:var(--text)}
   .log{font-size:12px;color:var(--muted);white-space:pre-wrap;word-break:break-word;
@@ -109,66 +79,37 @@
   /* ---- Clip previews ---- */
   .results{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
   @media (max-width:560px){.results{grid-template-columns:1fr}}
-  .clip{background:var(--card2);border:1px solid var(--border);border-radius:18px;
-    overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4);
-    transition:transform .2s, border-color .2s, box-shadow .2s}
-  .clip:hover{transform:translateY(-3px);border-color:var(--pink);
-    box-shadow:0 12px 30px rgba(0,0,0,.5),0 0 22px rgba(255,46,136,.25)}
+  .clip{background:var(--card2);border:1px solid var(--border);border-radius:16px;overflow:hidden}
   .clip video{width:100%;display:block;background:#000;max-height:360px}
   .clip .meta{padding:14px}
-  .clip .t{font-weight:800;font-size:15px}
+  .clip .t{font-weight:700;font-size:15px}
   .clip .s{color:var(--muted);font-size:13px;line-height:1.5;margin-top:5px}
   .clip .s .energy{color:var(--orange);font-weight:700}
   .clip a.dl{display:block;text-align:center;margin:0 14px 14px;padding:12px;border-radius:12px;
-    background:linear-gradient(90deg,var(--pink),var(--purple));color:#fff;text-decoration:none;
-    font-weight:800;font-size:15px;box-shadow:0 4px 16px rgba(255,46,136,.35);
-    transition:transform .15s, filter .15s}
-  .clip a.dl:hover{transform:translateY(-1px);filter:brightness(1.1)}
+    background:var(--pink);color:#fff;text-decoration:none;font-weight:700;font-size:15px}
   .note{border-left:3px solid var(--orange);padding:12px 14px;background:#ff8a0012;
     border-radius:10px;font-size:14px;line-height:1.55;color:var(--muted)}
+  details.how{margin-top:24px;border-top:1px solid var(--border);padding-top:16px}
+  details.how summary{cursor:pointer;color:var(--muted);font-size:15px;font-weight:600}
+  details.how p{color:var(--muted);font-size:15px}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 36px}
   a{color:var(--pink)}
 </style>
 </head>
 <body>
-<header class="hero">
-  <div class="sun" aria-hidden="true"></div>
-  <h1>LEONIDA<span class="nights">NIGHTS</span></h1>
-  <p class="sub">Leonida Clipper — turn a long video into Shorts in 60 seconds</p>
-  <div class="badges">
-    <span class="badge"><b>✓</b> Free · Unlimited · No watermark</span>
-    <span class="badge"><b>✓</b> Best moments, picked automatically</span>
-    <span class="badge"><b>✓</b> Preview every clip</span>
-    <span class="badge"><b>✓</b> Download to your device</span>
-  </div>
-  <!-- Sunset skyline + palms -->
-  <svg class="skyline" viewBox="0 0 800 86" preserveAspectRatio="none" aria-hidden="true">
-    <g fill="#12081f">
-      <rect x="0" y="46" width="70" height="40"/><rect x="80" y="30" width="46" height="56"/>
-      <rect x="136" y="52" width="60" height="34"/><rect x="206" y="18" width="40" height="68"/>
-      <rect x="256" y="40" width="66" height="46"/><rect x="332" y="26" width="44" height="60"/>
-      <rect x="386" y="48" width="70" height="38"/><rect x="466" y="14" width="42" height="72"/>
-      <rect x="518" y="38" width="64" height="48"/><rect x="592" y="28" width="46" height="58"/>
-      <rect x="648" y="50" width="62" height="36"/><rect x="720" y="22" width="80" height="64"/>
-    </g>
-    <g stroke="#12081f" stroke-width="5" stroke-linecap="round" fill="none">
-      <path d="M60 86 V52 M60 52 C40 44 30 34 28 22 M60 52 C78 42 88 34 92 20 M60 52 C60 38 56 28 48 18"/>
-      <path d="M748 86 V56 M748 56 C730 48 720 40 718 28 M748 56 C764 46 774 38 778 26 M748 56 C748 44 744 34 736 26"/>
-    </g>
-    <g fill="#ff2e88"><circle cx="206" cy="14" r="3"/><circle cx="466" cy="10" r="3"/><circle cx="720" cy="18" r="3"/></g>
-  </svg>
+<header>
+  <div class="mark">Leonida Nights</div>
+  <h1>Leonida <span>Clipper</span></h1>
+  <p>Turn a long video into Shorts in 60 seconds. Free, unlimited, no watermark.</p>
 </header>
 <main>
 
-  <!-- Step 1: source -->
-  <section class="card" id="step1">
-    <h2><span class="stepnum">1</span> Add your video</h2>
-    <p>Upload the full video file — the cutting happens right here in your browser.
-    Or paste a YouTube link: our own free server fetches it first, then the
-    cutting still happens in your browser.</p>
+  <!-- The whole flow in one card -->
+  <section class="card">
+    <h2>Add your video</h2>
+    <p class="hint">Upload a file, or paste a YouTube link — the cutting happens in your browser.</p>
 
     <div class="dropzone" id="dropZone" tabindex="0" role="button" aria-label="Upload a video file">
-      <span class="up"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ff2e88" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M2 7l2-4h16l2 4"/><path d="M7 3l2 4M12 3l2 4M17 3l2 4"/></svg></span>
       <strong>Drop your video here</strong><br>
       or tap to choose a file from your device<br>
       <span style="font-size:13px">MP4, WebM, MOV and most other video files work</span>
@@ -179,19 +120,13 @@
     <div class="or">or paste a YouTube link</div>
     <label for="ytUrl">YouTube link</label>
     <input type="url" id="ytUrl" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
-    <label for="customCobalt">Your server address (only if you deployed it under a different name)</label>
-    <input type="url" id="customCobalt" placeholder="https://leonida-clipper-yt.onrender.com — leave empty to use the default" autocomplete="off">
     <div class="notice" id="ytNotice">
       <strong>Heads up:</strong> our free server fetches the link for you. It sleeps
       after 15 minutes with no use, so the first try of the day can take about
       a minute to wake up. If the fetch fails, download the video to your
       device first, then upload that file above.
     </div>
-  </section>
 
-  <!-- Step 2: options -->
-  <section class="card" id="step2">
-    <h2><span class="stepnum">2</span> Choose your clips</h2>
     <div class="row">
       <div>
         <label for="clipCount">How many clips?</label>
@@ -227,17 +162,23 @@
         </select>
       </div>
     </div>
-    <p style="font-size:13px">Vertical 1080 × 1920 is the size for YouTube Shorts. Vertical clips are a
+    <p style="font-size:13px;color:var(--muted)">Vertical 1080 × 1920 is the size for YouTube Shorts. Vertical clips are a
     true 9:16 crop from the middle of the video — the frame is filled edge to edge,
     with no blurred bars and no black bars. The tool listens for the
     loudest moments — shouting, laughter, hype reactions, chases — and cuts those.</p>
-  </section>
 
-  <!-- Generate -->
-  <button id="generateBtn" type="button">Generate Clips</button>
-  <div class="progress" id="progressWrap"><div id="progressBar"></div></div>
-  <div class="status" id="status">Upload a video, pick how many clips you want, then press Generate Clips.</div>
-  <div class="log" id="log"></div>
+    <button id="generateBtn" type="button">Generate Clips</button>
+    <div class="progress" id="progressWrap"><div id="progressBar"></div></div>
+    <div class="status" id="status">Upload a video, pick how many clips you want, then press Generate Clips.</div>
+    <div class="log" id="log"></div>
+
+    <details class="advanced">
+      <summary>Advanced</summary>
+      <p>Only change this if you deployed the server under a different name.</p>
+      <label for="customCobalt">Your server address</label>
+      <input type="url" id="customCobalt" placeholder="https://leonida-clipper-yt-production.up.railway.app/ — leave empty to use the default" autocomplete="off">
+    </details>
+  </section>
 
   <!-- YouTube explainer (only shown when a link is pasted and Generate is pressed) -->
   <section class="explainer" id="ytExplainer">
@@ -249,7 +190,7 @@
     <p><strong>What to do instead — it takes about a minute:</strong></p>
     <ol>
       <li>Download the video to your device first — for example with yt-dlp, or a video downloader of your choice.</li>
-      <li>Come back here and upload that video file in Step 1 above (drop it on the box).</li>
+      <li>Come back here and upload that video file above (drop it on the box).</li>
       <li>Pick how many clips and what size, press <strong>Generate Clips</strong>, and download the clips.</li>
     </ol>
     <p>An uploaded file never leaves your device — the cutting happens in your browser. A pasted link is different: our server has to fetch that video first, then hand the file to your browser to cut.</p>
@@ -257,15 +198,15 @@
   </section>
 
   <!-- Results -->
-  <section class="card" id="resultsCard" style="display:none">
+  <section class="card" id="resultsCard" style="display:none;margin-top:20px">
     <h2>Your clips</h2>
     <p id="resultsSummary"></p>
     <button id="downloadAllBtn" type="button" class="secondary">Download All Clips</button>
     <div class="results" id="results"></div>
   </section>
 
-  <section class="card">
-    <h2>How it works</h2>
+  <details class="how">
+    <summary>How it works</summary>
     <p>1. Upload your video file — or paste a YouTube link, which our own free
     server fetches first. If it can't fetch it, upload the file instead.<br>
     2. Pick how many clips, how long, and what size.<br>
@@ -280,7 +221,7 @@
     take a minute on a slow connection. After that, cutting happens on your device. Very long or
     very large videos (over about 1&nbsp;GB) can be slow or run out of browser memory — shorter
     videos work best.</p>
-  </section>
+  </details>
 
 </main>
 <footer>
