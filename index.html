@@ -111,18 +111,22 @@
     <div class="or">— or paste a YouTube link —</div>
     <label for="ytUrl">YouTube link</label>
     <input type="url" id="ytUrl" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
-    <label for="pipedInstance">Fetch the link with (Piped — free, no account needed)</label>
-    <select id="pipedInstance">
-      <option value="auto" selected>Auto — try each one in turn</option>
-      <option value="https://api.piped.private.coffee">api.piped.private.coffee</option>
-      <option value="https://pipedapi.wireway.ch">pipedapi.wireway.ch</option>
-      <option value="https://pipedapi.kavin.rocks">pipedapi.kavin.rocks</option>
+    <label for="fetchServer">Fetch the link with (free, no account needed)</label>
+    <select id="fetchServer">
+      <option value="auto" selected>Auto — Piped first, then Invidious</option>
+      <option value="piped:https://api.piped.private.coffee">Piped — api.piped.private.coffee</option>
+      <option value="piped:https://pipedapi.wireway.ch">Piped — pipedapi.wireway.ch</option>
+      <option value="piped:https://pipedapi.kavin.rocks">Piped — pipedapi.kavin.rocks</option>
+      <option value="invidious:https://yt.chocolatemoo53.com">Invidious — yt.chocolatemoo53.com</option>
     </select>
+    <label for="customInvidious">Your own Invidious instance (optional)</label>
+    <input type="url" id="customInvidious" placeholder="https://your-invidious-instance — tried after the ones above" autocomplete="off">
     <div class="notice" id="ytNotice">
-      <strong>Heads up:</strong> this page will try to fetch the video through Piped, a free public
-      service — no account, no key. Piped is free but its servers can be down, slow, or blocked
-      by YouTube for some videos. If the fetch fails, download the video to your device first,
-      then upload that file above. See the full steps below when you press Generate Clips.
+      <strong>Heads up:</strong> this page will try to fetch the video through Piped first,
+      then Invidious — both free public services, no account, no key. They are free but
+      their servers can be down, slow, or blocked by YouTube for some videos. If the fetch
+      fails, download the video to your device first, then upload that file above. See the
+      full steps below when you press Generate Clips.
     </div>
   </section>
 
@@ -179,10 +183,10 @@
     <h3>That YouTube link couldn't be fetched right now</h3>
     <div id="pipedError" style="color:var(--muted);font-size:14px;line-height:1.6"></div>
     <p>This page runs entirely in your browser — there is no server behind it — so it fetches
-    YouTube links through Piped, a free public service. Piped's servers are free but they can
-    be down, slow, or blocked by YouTube for some videos (YouTube sometimes asks Piped to sign
-    in to prove it isn't a bot, and Piped can't do that). That is why the link failed — it is
-    not a problem with your video.</p>
+    YouTube links through Piped first, then Invidious, both free public services. Their servers
+    are free but they can be down, slow, or blocked by YouTube for some videos (YouTube sometimes
+    asks them to sign in to prove they aren't a bot, and they can't do that). That is why the
+    link failed — it is not a problem with your video.</p>
     <p><strong>What to do instead — it takes about a minute:</strong></p>
     <ol>
       <li>Download the video to your device first — for example with yt-dlp, or a video downloader of your choice.</li>
@@ -204,7 +208,8 @@
   <section class="card">
     <h2>How it works</h2>
     <p>1. Upload your video file — or paste a YouTube link, which the page tries to fetch
-    through Piped (free, no account). If Piped can't fetch it, upload the file instead.<br>
+    through Piped first, then Invidious (both free, no account). If neither can fetch it,
+    upload the file instead.<br>
     2. Pick how many clips, how long, and what size.<br>
     3. Press <strong>Generate Clips</strong>. The tool listens to the audio, finds the loudest,
     most energetic moments, and cuts each clip in your browser.<br>

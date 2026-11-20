@@ -12,10 +12,12 @@
 //     picked, with a blurred background, H.264 + AAC, no watermark.
 //  5. Every clip gets a playable preview and a download button.
 //
-// A pasted YouTube link can NOT be cut here: YouTube does not let a web
-// page download its videos, and the YouTube downloader (yt-dlp) only runs
-// on a computer, not in a browser. A link is never faked — the page says
-// so plainly and points the user at uploading the file instead.
+// A pasted YouTube link is fetched through Piped first, then Invidious
+// (both free public services, no key, no server of our own). Neither is
+// guaranteed: their servers can be down, slow, or blocked by YouTube for
+// some videos, so the page tries each one in turn and says plainly when
+// all of them failed — it never fakes a fetch. Uploading the video file
+// directly always works instead.
 
 // ---------------------------------------------------------------------------
 // Pure helpers — exported so they can be unit-tested without a browser.
@@ -135,6 +137,104 @@ export const PIPED_INSTANCES = [
   "https://pipedapi.wireway.ch",
   "https://pipedapi.kavin.rocks",
 ];
+
+// Invidious — free public front-ends for YouTube, no key, no server of
+// our own. Tried only after every Piped instance has failed.
+// Live-tested 2026-11-20: of the instances in the official list
+// (api.invidious.io/instances.json) and the usual public ones, ONLY
+// yt.chocolatemoo53.com actually answered /api/v1/videos with video data
+// — and it did so even for GTA 6 streamer videos (Clix, CarryMinati)
+// that Piped answers with HTTP 500. It is also the only listed instance
+// with api=true AND cors=true, which a browser page needs to call it.
+// The others failed on the day: nadeko 403, nerdvpn 403 access_denied,
+// tiekoetter 403, yewtu 403, pixora returns an HTML picker page (no API),
+// privacyredirect / datura / projectsegfau / flokinet unreachable.
+// If that one instance ever goes down, add a replacement that has
+// api=true and cors=true in the official instances list — do NOT add an
+// instance that has not been live-tested to return video data.
+export const INVIDIOUS_INSTANCES = [
+  "https://yt.chocolatemoo53.com",
+];
+
+/** Proxied media URL through an Invidious instance (bypasses the direct
+ * googlevideo link's IP/CORS limits). Returns a 302 to a companion host;
+ * if that host refuses, the caller falls back to the direct URL. */
+export function invidiousProxyUrl(base, videoId, itag) {
+  return `${base}/latest_version?id=${videoId}&itag=${itag}&local=true`;
+}
+
+function resolutionNumber(res) {
+  const m = String(res || "").match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function isH264Mp4(f) {
+  const type = String(f.type || "");
+  // H.264 video in an MP4 container. Avoid AV1 (codecs av01) — the
+  // in-browser cutter handles H.264 far better — and VP9/WebM.
+  return (
+    type.startsWith("video/mp4") &&
+    (f.container === "mp4" || type.includes("avc1")) &&
+    !type.includes("av01")
+  );
+}
+
+/**
+ * Pick the streams to download from an Invidious /api/v1/videos/{id}
+ * response. Invidious returns adaptive-only streams (no muxed
+ * formatStreams in practice): a video-only track plus a separate audio
+ * track, muxed later by ffmpeg — the same as the Piped video-only path.
+ * Prefers H.264 MP4 at 720p, then 1080p, then 480p, then 360p, with the
+ * best AAC (audio/mp4, itag 140) track.
+ * Returns { videoUrl, audioUrl|null, videoItag, audioItag|null, quality,
+ * hasAudio } or null. videoUrl/audioUrl are the direct googlevideo URLs;
+ * callers should try the proxied latest_version URL first.
+ */
+export function chooseInvidiousStreams(data) {
+  if (!data || typeof data !== "object") return null;
+  const videoId = data.videoId || null;
+
+  // 1. A muxed format stream with audio, if the instance ever returns one.
+  const muxed = (data.formatStreams || []).filter(
+    (f) => f && f.url && String(f.type || "").startsWith("video/"),
+  );
+  if (muxed.length) {
+    const sorted = [...muxed].sort(
+      (a, b) => resolutionNumber(b.resolution || b.quality) - resolutionNumber(a.resolution || a.quality),
+    );
+    const pick = sorted.find((f) => resolutionNumber(f.resolution || f.quality) <= 720) || sorted[sorted.length - 1];
+    return {
+      videoUrl: pick.url,
+      audioUrl: null,
+      videoItag: pick.itag != null ? String(pick.itag) : null,
+      audioItag: null,
+      quality: pick.quality || pick.resolution || "?",
+      hasAudio: true,
+      videoId,
+    };
+  }
+
+  // 2. Adaptive: best H.264 MP4 video + best AAC audio.
+  const adaptive = (data.adaptiveFormats || []).filter((f) => f && f.url);
+  const videos = adaptive.filter((f) => String(f.type || "").startsWith("video/") && isH264Mp4(f));
+  const audios = adaptive.filter((f) => String(f.type || "").startsWith("audio/mp4"));
+  if (!videos.length) return null;
+  const byRes = (a, b) => resolutionNumber(b.resolution) - resolutionNumber(a.resolution);
+  const video =
+    [...videos].sort(byRes).find((f) => resolutionNumber(f.resolution) <= 720) ||
+    [...videos].sort(byRes)[0];
+  const audio =
+    [...audios].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0] || null;
+  return {
+    videoUrl: video.url,
+    audioUrl: audio ? audio.url : null,
+    videoItag: video.itag != null ? String(video.itag) : null,
+    audioItag: audio && audio.itag != null ? String(audio.itag) : null,
+    quality: video.resolution || video.quality || "?",
+    hasAudio: !!audio,
+    videoId,
+  };
+}
 
 /** Pull the 11-character video ID out of any YouTube URL shape. */
 export function extractVideoId(text) {
@@ -346,10 +446,21 @@ if (typeof document !== "undefined") {
     return new Blob(chunks, { type: res.headers.get("content-type") || undefined });
   }
 
-  function pipedInstancesToTry() {
-    const picked = $("pipedInstance").value;
-    if (picked && picked !== "auto") return [picked];
-    return [...PIPED_INSTANCES];
+  // Which fetch services to try, from the combined "Fetch the link with"
+  // selector in Step 1. Returns { piped: [...], invidious: [...] }.
+  // "auto" tries every Piped instance first, then every Invidious one.
+  // A "piped:URL" / "invidious:URL" choice tries only that one server.
+  function fetchPlan() {
+    const picked = $("fetchServer").value || "auto";
+    const custom = ($("customInvidious").value || "").trim().replace(/\/$/, "");
+    const invidious = [...INVIDIOUS_INSTANCES];
+    if (custom && custom.startsWith("http") && !invidious.includes(custom)) {
+      invidious.push(custom);
+    }
+    if (picked === "auto") return { piped: [...PIPED_INSTANCES], invidious };
+    if (picked.startsWith("piped:")) return { piped: [picked.slice("piped:".length)], invidious: [] };
+    if (picked.startsWith("invidious:")) return { piped: [], invidious: [picked.slice("invidious:".length), ...invidious.filter((u) => u !== picked.slice("invidious:".length))] };
+    return { piped: [...PIPED_INSTANCES], invidious };
   }
 
   /**
@@ -358,9 +469,9 @@ if (typeof document !== "undefined") {
    * Throws an Error listing what each instance said, when all of them fail.
    * Never pretends it worked.
    */
-  async function fetchViaPiped(videoId) {
+  async function fetchViaPiped(videoId, bases) {
     const failures = [];
-    for (const base of pipedInstancesToTry()) {
+    for (const base of bases) {
       const host = base.replace("https://", "");
       try {
         setStatus(`Asking ${host} for the video…`);
@@ -419,6 +530,119 @@ if (typeof document !== "undefined") {
     throw new Error(failures.join(" | ") || "all Piped instances failed");
   }
 
+  // Download a media URL, trying the Invidious-proxied URL first (it goes
+  // through the instance, bypassing the direct link's IP/CORS limits) and
+  // then the direct googlevideo URL. Throws when both fail.
+  async function downloadInvidiousMedia(base, videoId, itag, directUrl, label, onBytes) {
+    const host = base.replace("https://", "");
+    const attempts = [];
+    if (itag) attempts.push({ url: invidiousProxyUrl(base, videoId, itag), via: `proxied (${host})` });
+    if (directUrl) attempts.push({ url: directUrl, via: `direct (${host})` });
+    let lastErr = null;
+    for (const a of attempts) {
+      try {
+        return await downloadWithProgress(a.url, label, onBytes);
+      } catch (e) {
+        lastErr = e;
+        log(`Invidious ${label} via ${a.via} failed (${e.message}) — trying the other way.`);
+      }
+    }
+    throw lastErr || new Error(`could not download ${label}`);
+  }
+
+  /**
+   * Fetch a YouTube video through Invidious. Tries each instance in turn.
+   * Same return shape as fetchViaPiped. Invidious returns adaptive-only
+   * streams, so the video is video-only H.264 MP4 and the audio is a
+   * separate AAC track, muxed later by ffmpeg.
+   */
+  async function fetchViaInvidious(videoId, bases) {
+    const failures = [];
+    for (const base of bases) {
+      const host = base.replace("https://", "");
+      try {
+        setStatus(`Asking Invidious (${host}) for the video…`);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        let res;
+        try {
+          res = await fetch(`${base}/api/v1/videos/${videoId}`, { signal: ctrl.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!res.ok) {
+          failures.push(`${host}: answered HTTP ${res.status}`);
+          continue;
+        }
+        const data = await res.json();
+        if (data.error) {
+          failures.push(`${host}: ${String(data.error).slice(0, 160)}`);
+          continue;
+        }
+        const choice = chooseInvidiousStreams(data);
+        if (!choice) {
+          failures.push(`${host}: no downloadable video stream in the answer`);
+          continue;
+        }
+        const title = (data.title || videoId).replace(/[^\w\- ]+/g, "").trim().slice(0, 50) || videoId;
+        setStatus(`Found it on Invidious (${host}, ${choice.quality}) — downloading the video…`);
+        log(`Invidious (${host}): ${data.title || videoId} · ${choice.quality} · video + separate audio`);
+        const videoBlob = await downloadInvidiousMedia(base, videoId, choice.videoItag, choice.videoUrl, "video", (got, total) => {
+          setStatus(`Downloading the video from Invidious (${host}) — ${formatSize(got)}${total ? ` of ${formatSize(total)}` : ""}…`);
+          if (total) setProgress(0.05 + 0.1 * (got / total));
+        });
+        let audioBlob = null;
+        if (choice.audioUrl) {
+          setStatus(`Downloading the audio track from Invidious (${host})…`);
+          try {
+            audioBlob = await downloadInvidiousMedia(base, videoId, choice.audioItag, choice.audioUrl, "audio", null);
+          } catch (e) {
+            log(`Audio track download failed (${e.message}) — cutting the video without sound.`);
+            audioBlob = null;
+          }
+        }
+        return {
+          file: new File([videoBlob], `${title}.mp4`, { type: "video/mp4" }),
+          audioFile: audioBlob ? new File([audioBlob], `${title}-audio.m4a`, { type: "audio/mp4" }) : null,
+          instance: `Invidious ${host}`,
+          quality: choice.quality,
+          title: data.title || title,
+        };
+      } catch (err) {
+        failures.push(`${host}: ${err.name === "AbortError" ? "timed out after 15s" : err.message}`);
+      }
+    }
+    throw new Error(failures.join(" | ") || "all Invidious instances failed");
+  }
+
+  /**
+   * Fetch a pasted YouTube link: Piped first, then Invidious. Throws one
+   * error listing what every service said, so the page can show it honestly.
+   */
+  async function fetchViaLink(videoId) {
+    const plan = fetchPlan();
+    const failures = [];
+    if (plan.piped.length) {
+      try {
+        const got = await fetchViaPiped(videoId, plan.piped);
+        return { ...got, source: "Piped" };
+      } catch (err) {
+        failures.push(`Piped — ${err.message}`);
+      }
+    }
+    if (plan.invidious.length) {
+      setStatus("Piped couldn't fetch it — trying Invidious instead…");
+      log("Piped failed, falling back to Invidious.");
+      try {
+        const got = await fetchViaInvidious(videoId, plan.invidious);
+        return { ...got, source: "Invidious" };
+      } catch (err) {
+        failures.push(`Invidious — ${err.message}`);
+      }
+    }
+    throw new Error(failures.join(" || ") || "all fetch services failed");
+  }
+
   async function analyseAudio(file) {
     // Decode the audio in the browser and measure loudness every 0.5s.
     const buf = await file.arrayBuffer();
@@ -453,8 +677,9 @@ if (typeof document !== "undefined") {
       generateBtn.textContent = "Generate Clips";
     };
 
-    // No file uploaded — try to fetch the pasted YouTube link through Piped.
-    // If Piped can't get it, say so plainly and point at uploading the file.
+    // No file uploaded — try to fetch the pasted YouTube link, first
+    // through Piped, then through Invidious. If neither can get it, say
+    // so plainly and point at uploading the file.
     if (!selectedFile) {
       if (isYouTubeUrl(link)) {
         const videoId = extractVideoId(link);
@@ -465,14 +690,14 @@ if (typeof document !== "undefined") {
         }
         setProgress(0.02);
         try {
-          const fetched = await fetchViaPiped(videoId);
+          const fetched = await fetchViaLink(videoId);
           selectedFile = fetched.file;
           selectedAudioFile = fetched.audioFile;
           pipedTitle = fetched.title;
           selectedDuration = 0;
           clearClips();
-          fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · fetched via Piped (${fetched.instance}, ${fetched.quality})`;
-          log(`Fetched "${fetched.title}" via Piped (${fetched.instance}, ${fetched.quality}).`);
+          fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · fetched via ${fetched.source} (${fetched.instance}, ${fetched.quality})`;
+          log(`Fetched "${fetched.title}" via ${fetched.source} (${fetched.instance}, ${fetched.quality}).`);
           // Read the length from the fetched file.
           await new Promise((resolve) => {
             const probe = document.createElement("video");
@@ -482,7 +707,7 @@ if (typeof document !== "undefined") {
             probe.onloadedmetadata = () => {
               selectedDuration = probe.duration || 0;
               URL.revokeObjectURL(probe.src);
-              fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · ${formatTime(selectedDuration)} long · via Piped (${fetched.instance}, ${fetched.quality})`;
+              fileInfo.textContent = `✓ ${fetched.title} · ${formatSize(fetched.file.size)} · ${formatTime(selectedDuration)} long · via ${fetched.source} (${fetched.instance}, ${fetched.quality})`;
               resolve();
             };
             probe.onerror = () => { URL.revokeObjectURL(probe.src); resolve(); };
@@ -491,10 +716,10 @@ if (typeof document !== "undefined") {
           ytExplainer.classList.add("show");
           $("pipedError").innerHTML =
             `<strong>What happened:</strong> ${escapeHtml(err.message)}<br>` +
-            `You can change the Piped server in Step 1 and try again, or upload the video file instead — that always works.`;
+            `You can change the fetch server in Step 1 and try again, or upload the video file instead — that always works.`;
           ytExplainer.scrollIntoView({ behavior: "smooth", block: "start" });
-          setStatus("That link couldn't be fetched right now — see the steps above. Try again, pick a different Piped server, or upload the video file instead.");
-          log(`Piped fetch failed: ${err.message}`);
+          setStatus("That link couldn't be fetched right now — see the steps above. Try again, pick a different fetch server, or upload the video file instead.");
+          log(`Link fetch failed: ${err.message}`);
           stopRunning();
           return;
         }
