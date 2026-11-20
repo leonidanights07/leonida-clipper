@@ -1,0 +1,11 @@
+# Leonida Clipper — yt-dlp YouTube backend
+# Local test only. Render deploys from backend-yt/Dockerfile (see DEPLOY-YT.md).
+services:
+  yt:
+    build: .
+    ports:
+      - "9007:9007"
+    environment:
+      - PORT=9007
+      - API_URL=http://localhost:9007
+      - CORS_URL=http://localhost:9007
