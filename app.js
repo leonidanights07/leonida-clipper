@@ -9,7 +9,9 @@
 //  3. Every possible clip window is scored by its average loudness and the
 //     best N non-overlapping windows are picked.
 //  4. ffmpeg.wasm (loaded from a CDN) cuts those windows to the size you
-//     picked, with a blurred background, H.264 + AAC, no watermark.
+//     picked, with a true 9:16 centre crop for vertical clips (no blurred
+//     background, no black bars — the frame is filled edge to edge),
+//     H.264 + AAC, no watermark.
 //  5. Every clip gets a playable preview and a download button.
 //
 // A pasted YouTube link is fetched through OUR OWN Cobalt backend only
@@ -104,16 +106,27 @@ export function evenWindows(duration, clipLength, count) {
 }
 
 /**
- * ffmpeg filter that fills the target frame with a blurred copy of the
- * video and centres the full video on top of it (the Leonida Nights look).
+ * ffmpeg filter for a TRUE centre crop to the target frame — no blurred
+ * background, no black bars. The crop takes the middle window of the
+ * source at the target aspect ratio, then scales it to the target size,
+ * so the clip fills the whole frame edge to edge.
+ *
+ * For the default vertical size (1080x1920) from a 16:9 source this is
+ * the centre 9:16 window: crop=ih*9/16 wide x ih tall, scaled to
+ * 1080x1920 — exactly what Uzair asked for (2026-11-20).
+ *
+ * The crop size is the smaller of the source size and the size the
+ * target aspect ratio allows, truncated to an even number (yuv420p /
+ * libx264 need even dimensions). If the source already matches the
+ * target aspect (e.g. an already-vertical video cut to 1080x1920),
+ * the crop is the whole frame — nothing is cut off, it just scales.
+ * Crop x/y default to the centre, so the window is always centred.
  */
 export function buildVideoFilter(width, height) {
   return (
-    `[0:v]split[a][b];` +
-    `[a]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
-    `crop=${width}:${height},gblur=sigma=32[bg];` +
-    `[b]scale=${width}:${height}:force_original_aspect_ratio=decrease[fg];` +
-    `[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]`
+    `crop='trunc(min(iw,ih*${width}/${height})/2)*2':` +
+    `'trunc(min(ih,iw*${height}/${width})/2)*2',` +
+    `scale=${width}:${height},setsar=1,format=yuv420p[v]`
   );
 }
 

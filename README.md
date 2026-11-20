@@ -29,8 +29,9 @@ That's it. There is nothing to install and no command to run.
 
 Per run, in your downloads:
 
-- One `.mp4` per clip — H.264 + AAC, blurred-background format (same look as the
-  Leonida Nights clips), **no watermark**, at the size you picked.
+- One `.mp4` per clip — H.264 + AAC, true 9:16 centre crop for vertical clips
+  (the frame is filled edge to edge, no blurred background, no black bars),
+  **no watermark**, at the size you picked.
 
 ## How it finds the best moments (no paid AI)
 
