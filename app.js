@@ -8,7 +8,9 @@
 //     0.5 seconds, the same way the original tool did.
 //  3. Every possible clip window is scored by its average loudness and the
 //     best N non-overlapping windows are picked.
-//  4. ffmpeg.wasm (loaded from a CDN) cuts those windows to the size you
+//  4. ffmpeg.wasm (core loaded from a CDN, worker script vendored in
+//     vendor/ffmpeg/ so the browser can construct it — see the
+//     FFMPEG_WORKER_URL comment) cuts those windows to the size you
 //     picked, with a true 9:16 centre crop for vertical clips (no blurred
 //     background, no black bars — the frame is filled edge to edge),
 //     H.264 + AAC, no watermark.
@@ -143,6 +145,24 @@ const FFMPEG_ESM = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm
 const FFMPEG_UTIL_ESM = "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js";
 const FFMPEG_CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 
+// The ffmpeg worker script, served from OUR OWN origin. This is the fix
+// for the "Failed to construct 'Worker'" error (2026-11-20): the FFmpeg
+// class creates its worker with new Worker(new URL("./worker.js",
+// import.meta.url)) — a script on the CDN's origin — and browsers refuse
+// to construct a Worker from a cross-origin script, so cutting failed on
+// GitHub Pages before it even started. Passing classWorkerURL (an absolute
+// URL to vendor/ffmpeg/worker.js on this site) makes the worker same-origin,
+// which browsers allow. The worker's own relative imports (./const.js,
+// ./errors.js) resolve in that same folder — see vendor/ffmpeg/README.md.
+// A blob URL would NOT work here: a blob URL has no directory, so the
+// worker's `import "./const.js"` would fail. The core files
+// (ffmpeg-core.js / .wasm) are still fetched from the CDN via toBlobURL()
+// below — fetching them in the main thread works cross-origin, only the
+// worker script itself has the same-origin restriction.
+// Resolved against this module's own URL so it works wherever the site is
+// hosted (GitHub Pages serves it under /leonida-clipper/, not the root).
+export const FFMPEG_WORKER_URL = new URL("vendor/ffmpeg/worker.js", import.meta.url).toString();
+
 // Our own Cobalt backend on Render (free tier). This is the URL the
 // service gets when it is deployed from render.yaml with the service name
 // `leonida-clipper-cobalt`. It does NOT exist until someone deploys it —
@@ -154,6 +174,20 @@ const FFMPEG_CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist
 // saved in the browser. Never put an API key here — the page is public,
 // so anything in it is visible to everyone.
 export const COBALT_BACKEND_URL = "https://leonida-clipper-cobalt.onrender.com";
+
+/** Pick the Cobalt backend URL: the "Your server address" box wins, then a
+ * URL saved in the browser, then the default above. Pure — unit-testable.
+ * (This is the function fetchPlan() calls. An earlier version called a
+ * cobaltBaseUrl() that was never defined, so pasting any link failed
+ * instantly with "cobaltBaseUrl is not defined" and the server was never
+ * contacted — fixed 2026-11-20.) */
+export function resolveCobaltBaseUrl(custom, saved) {
+  const c = (custom || "").trim();
+  if (c) return c.replace(/\/+$/, "");
+  const s = (saved || "").trim();
+  if (s.startsWith("http")) return s.replace(/\/+$/, "");
+  return COBALT_BACKEND_URL;
+}
 
 // How long to wait for the Render free service to wake up. It sleeps
 // after 15 minutes idle; waking takes about 30–60 seconds. The page
@@ -361,6 +395,25 @@ if (typeof document !== "undefined") {
     }
   } catch (e) { /* private mode */ }
 
+  // The Cobalt backend URL actually used for a link fetch: the "Your server
+  // address" box if filled in (saved in the browser as it is typed), else a
+  // previously saved URL, else the default COBALT_BACKEND_URL.
+  function cobaltBaseUrl() {
+    let saved = null;
+    try { saved = localStorage.getItem("leonida-cobalt-url"); } catch (e) { /* private mode */ }
+    const custom = $("customCobalt") ? $("customCobalt").value : "";
+    return resolveCobaltBaseUrl(custom, saved);
+  }
+  if ($("customCobalt")) {
+    $("customCobalt").addEventListener("input", () => {
+      try {
+        const v = $("customCobalt").value.trim();
+        if (v.startsWith("http")) localStorage.setItem("leonida-cobalt-url", v);
+        else localStorage.removeItem("leonida-cobalt-url");
+      } catch (e) { /* private mode */ }
+    });
+  }
+
   async function loadCutter() {
     if (ffmpeg) return ffmpeg;
     setStatus("Loading the video cutter for the first time (about 30 MB) — this can take a minute on a slow connection…");
@@ -370,6 +423,10 @@ if (typeof document !== "undefined") {
     ffmpeg = new ffmpegMod.FFmpeg();
     ffmpeg.on("log", ({ message }) => log(message));
     await ffmpeg.load({
+      // classWorkerURL is the same-origin vendored worker (see the
+      // FFMPEG_WORKER_URL comment above). Without it, load() builds the
+      // worker from the CDN URL and the browser refuses to construct it.
+      classWorkerURL: FFMPEG_WORKER_URL,
       coreURL: await ffmpegUtil.toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await ffmpegUtil.toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
     });
@@ -590,9 +647,9 @@ if (typeof document !== "undefined") {
           ytExplainer.classList.add("show");
           $("fetchError").innerHTML =
             `<strong>What happened:</strong> ${escapeHtml(err.message)}<br>` +
-            `You can change the fetch server in Step 1 and try again, or upload the video file instead — that always works.`;
+            `You can change the server address in Step 1 and try again, or upload the video file instead — that always works.`;
           ytExplainer.scrollIntoView({ behavior: "smooth", block: "start" });
-          setStatus("That link couldn't be fetched right now — see the steps above. Try again, pick a different fetch server, or upload the video file instead.");
+          setStatus("That link couldn't be fetched right now — see the steps above. Try again, check the server address in Step 1, or upload the video file instead.");
           log(`Link fetch failed: ${err.message}`);
           stopRunning();
           return;

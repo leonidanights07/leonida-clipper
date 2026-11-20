@@ -44,6 +44,40 @@ Per run, in your downloads:
 3. **Cutting** — ffmpeg.wasm (loaded from a CDN the first time you press Generate)
    cuts each window to the size you picked.
 
+## Fixes — 2026-11-20 (real browser test)
+
+A real browser test on the live site found two bugs, both fixed here:
+
+1. **Link fetch never ran.** `fetchPlan()` called `cobaltBaseUrl()`, which was
+   never defined, so pasting any link failed instantly with
+   "Link fetch failed: cobaltBaseUrl is not defined" and the server was
+   never contacted. `cobaltBaseUrl()` is now defined in `app.js`: it reads
+   the "Your server address" box (saved in the browser as it is typed),
+   then a previously saved URL, then the default
+   `https://leonida-clipper-cobalt.onrender.com`. The pure part is exported
+   as `resolveCobaltBaseUrl(custom, saved)` and unit-tested.
+2. **Cutting failed in the browser.** Uploading a file worked and clip
+   detection worked, but Generate failed with "Failed to construct
+   'Worker': Script at 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js'
+   cannot be accessed from origin 'https://leonidanights07.github.io'".
+   Browsers refuse to construct a Worker from a cross-origin script, and
+   the FFmpeg class builds its worker from its own CDN URL by default.
+   Fixed by vendoring the worker script in the repo — `vendor/ffmpeg/`
+   (`worker.js` + the `const.js` / `errors.js` it imports, byte-for-byte
+   from `@ffmpeg/ffmpeg@0.12.15`) — and passing it as `classWorkerURL` to
+   `ffmpeg.load()`, so the worker is same-origin. See
+   `vendor/ffmpeg/README.md` for why a blob URL would not work (the
+   worker's relative imports would break). The ffmpeg-core files are
+   still loaded from the CDN via `toBlobURL()` — only the worker script
+   has the same-origin restriction.
+
+**Still unproven in a real browser:** this VM has no browser, so the fix
+was verified with `node --check`, unit tests, and by checking the CDN
+files and headers with curl — not by a full paste-and-generate run in
+Chrome. After pushing, test on the live site: paste a link, and upload a
+file and press Generate Clips, and confirm both now get past the points
+where they failed before.
+
 ## YouTube links — how they work, and their limits
 
 Paste a YouTube link and the page sends it to **our own Cobalt backend**
@@ -148,14 +182,17 @@ no server — so it works on GitHub Pages as-is. It uses:
 
 - **ffmpeg.wasm 0.12.15** (`@ffmpeg/ffmpeg`, `@ffmpeg/util`, single-threaded
   `@ffmpeg/core` 0.12.10) from the jsDelivr CDN, loaded on demand when you
-  press Generate Clips.
+  press Generate Clips. The worker script itself is vendored in
+  `vendor/ffmpeg/` (same-origin — browsers refuse a cross-origin worker,
+  see "Fixes — 2026-11-20" above). When pushing to GitHub, upload the
+  `vendor/ffmpeg/` folder too — without it, cutting fails in the browser.
 - **Web Audio API** (`decodeAudioData`) for the loudness analysis.
 - No account, no API key, no upload: everything runs in the visitor's browser.
 
 The loudness scoring is in `app.js` as pure functions (`computeBestWindows`,
 `evenWindows`, `buildVideoFilter`) — they can be imported and unit-tested in
 Node without a browser. So can the Cobalt helpers (`cobaltRequestBody`,
-`parseCobaltResponse`).
+`parseCobaltResponse`, `resolveCobaltBaseUrl`).
 
 ## Advanced: the old command-line tool (optional, not needed for the website)
 
