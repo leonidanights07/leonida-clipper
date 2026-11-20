@@ -1,0 +1,31 @@
+# Local test copy of the Cobalt backend (Docker Compose).
+# Needs Docker + Docker Compose on your own computer.
+# This is NOT used by Render — Render uses ../render.yaml instead.
+#
+#   cd backend
+#   docker compose up -d
+#   curl http://localhost:9000/   # cobalt version JSON = it is up
+#   # test a download (Rick Astley, short):
+#   curl -X POST http://localhost:9000/ \
+#     -H "Accept: application/json" -H "Content-Type: application/json" \
+#     -d '{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","videoQuality":"720","downloadMode":"auto","youtubeVideoCodec":"h264","youtubeVideoContainer":"mp4","alwaysProxy":true}'
+#   # then fetch the returned tunnel URL with curl -O "<url>"
+#   docker compose down
+#
+# CORS_WILDCARD=1 here so you can call it from a local test page
+# (http://localhost:...). The Render deployment sets CORS_WILDCARD=0
+# and CORS_URL=https://leonidanights07.github.io instead.
+
+services:
+  cobalt-api:
+    image: ghcr.io/imputnet/cobalt:latest
+    container_name: leonida-cobalt
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      API_URL: http://localhost:9000/
+      API_PORT: "9000"
+      CORS_WILDCARD: "1"
+      DURATION_LIMIT: "10800"
+      TUNNEL_LIFESPAN: "300"
