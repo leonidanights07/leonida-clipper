@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Leonida Clipper — Free, Unlimited, No Watermark</title>
+<link rel="icon" href="./favicon.png">
 <style>
   :root{
     --bg:#0a0616; --card:#150d28; --card2:#1d1338;
@@ -21,14 +22,10 @@
       radial-gradient(700px 340px at 50% 108%, rgba(255,138,0,.55), transparent 65%),
       radial-gradient(900px 420px at 50% 118%, rgba(255,46,136,.5), transparent 60%),
       linear-gradient(180deg,#1a0b2e 0%,#3b1150 55%,#7a1e5e 100%)}
-  .sun{width:150px;height:150px;margin:6px auto 0;border-radius:50%;
-    background:radial-gradient(circle at 50% 40%,#ffe9a8 0%,#ffc233 35%,#ff8a00 62%,#ff2e88 100%);
-    box-shadow:0 0 60px 18px rgba(255,138,0,.55),0 0 120px 40px rgba(255,46,136,.35)}
+  .hero-logo{width:340px;max-width:82vw;height:auto;aspect-ratio:1/1;margin:14px auto 0;display:block;border-radius:50%;
+    box-shadow:0 8px 32px rgba(0,0,0,.55),0 0 60px 12px rgba(255,138,0,.35)}
   header .mark{position:relative;z-index:2;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
     color:#ffd9ec;text-shadow:0 1px 12px rgba(0,0,0,.5)}
-  header h1{position:relative;z-index:2;margin:12px 0 0;font-size:clamp(36px,7vw,56px);font-weight:800;
-    letter-spacing:1px;line-height:1.05;text-shadow:0 2px 18px rgba(0,0,0,.45)}
-  header h1 span{color:var(--pink)}
   header p{position:relative;z-index:2;color:#efe6ff;margin:12px auto 0;max-width:560px;font-size:16px;
     text-shadow:0 1px 12px rgba(0,0,0,.5)}
   .skyline{display:block;width:100%;height:86px;margin-top:20px}
@@ -110,9 +107,8 @@
 </head>
 <body>
 <header>
-  <div class="sun" aria-hidden="true"></div>
   <div class="mark">Leonida Nights</div>
-  <h1>Leonida <span>Clipper</span></h1>
+  <img class="hero-logo" src="./logo.png" alt="Leonida Clipper">
   <p>Turn a long video into Shorts in 60 seconds. Free, unlimited, no watermark.</p>
   <!-- Sunset skyline + palms -->
   <svg class="skyline" viewBox="0 0 800 86" preserveAspectRatio="none" aria-hidden="true">
